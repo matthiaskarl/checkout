@@ -56,5 +56,22 @@ Schema changes: edit `models.py`, then
 
 ## Deploy behind Apache
 
-Uvicorn runs as a systemd service on `127.0.0.1:8000`; Apache reverse-proxies to it.
-See the install comments in `deploy/checkout.service` and `deploy/apache-checkout.conf`.
+```
+https://HOST/api/...  ->  Apache :443 (TLS, mkcert cert)  ->  uvicorn 127.0.0.1:8100 (systemd "checkout")  ->  MySQL
+```
+
+- `deploy/deploy.sh` copies the code to `/srv/checkout`, installs locked deps into its own venv,
+  runs `alembic upgrade head`, installs `deploy/checkout.service` and restarts it.
+  On first run it copies `.env` to `/srv/checkout/.env` (root:www-data, 0640); later edits go there.
+- `deploy/apache-checkout.conf` is the proxy snippet inside the `*:443` vhost
+  (`/etc/apache2/sites-available/default-ssl.conf`). Apache strips `/api`; uvicorn's `--root-path /api`
+  makes docs/redirects use the public prefix.
+- Dev server (`fastapi dev`, port 8000) and the service (port 8100) can run side by side.
+
+```bash
+deploy/deploy.sh                       # redeploy after code changes
+systemctl status checkout              # service state
+journalctl -u checkout -f              # app logs
+```
+
+API: https://localhost/api/items, docs at https://localhost/api/docs

@@ -1,5 +1,11 @@
 """Test fixtures: run the app against an in-memory SQLite DB (no MySQL needed)."""
 
+import os
+
+# Must be set before importing checkout: settings are read at import time.
+# Overrides any value from .env so tests never touch the real database.
+os.environ["DATABASE_URL"] = "sqlite://"
+
 from collections.abc import Iterator
 
 import pytest

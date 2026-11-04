@@ -1,18 +1,33 @@
-# systemd unit: runs the app with uvicorn on localhost:8000.
-# Install: sudo cp deploy/checkout.service /etc/systemd/system/ && sudo systemctl daemon-reload
-#          sudo systemctl enable --now checkout
-# Adjust User and WorkingDirectory to where the app is deployed (e.g. /srv/checkout).
+# systemd unit: runs the app with uvicorn on 127.0.0.1:8100, behind Apache at /api/.
+# Installed by deploy/deploy.sh to /etc/systemd/system/checkout.service.
 [Unit]
-Description=checkout FastAPI app
+Description=checkout FastAPI app (uvicorn)
 After=network.target mysql.service
+Wants=mysql.service
 
 [Service]
 User=www-data
 Group=www-data
 WorkingDirectory=/srv/checkout
 EnvironmentFile=/srv/checkout/.env
-ExecStart=/srv/checkout/.venv/bin/uvicorn checkout.main:app --host 127.0.0.1 --port 8000 --workers 2 --proxy-headers --forwarded-allow-ips=127.0.0.1
+# --root-path: Apache strips /api/ before proxying; this tells the app its public prefix
+#              (so /docs, redirects and OpenAPI URLs point at /api/...).
+# --proxy-headers: trust X-Forwarded-Proto/For from Apache on localhost (real client IP, https).
+ExecStart=/srv/checkout/.venv/bin/uvicorn checkout.main:app \
+    --host 127.0.0.1 --port 8100 --workers 2 \
+    --root-path /api \
+    --proxy-headers --forwarded-allow-ips 127.0.0.1
 Restart=on-failure
+RestartSec=2
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
 
 [Install]
 WantedBy=multi-user.target

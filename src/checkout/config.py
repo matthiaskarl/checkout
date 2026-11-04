@@ -10,7 +10,9 @@ class Settings(BaseSettings):
 
     app_name: str = "checkout"
     debug: bool = False
-    database_url: str = "mysql+pymysql://app:changeme@localhost:3306/app?charset=utf8mb4"
+    # Required: set via environment variable or .env, e.g.
+    # mysql+pymysql://user:password@localhost:3306/dbname?charset=utf8mb4
+    database_url: str
 
 
 @lru_cache
