@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}checkout{% endblock %}</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; color: #222; }
+    label { display: block; margin-top: 1rem; font-weight: 600; }
+    input, textarea { width: 100%; padding: .5rem; font: inherit; box-sizing: border-box; }
+    button { margin-top: 1rem; padding: .5rem 1.25rem; font: inherit; cursor: pointer; }
+    .error { color: #b00020; font-size: .9rem; }
+    .notice { background: #e6f4ea; border: 1px solid #a8d5b5; padding: .5rem 1rem; border-radius: 4px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+    th, td { text-align: left; padding: .4rem; border-bottom: 1px solid #ddd; }
+  </style>
+</head>
+<body>
+  {% block content %}{% endblock %}
+</body>
+</html>
