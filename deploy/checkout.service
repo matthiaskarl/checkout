@@ -1,0 +1,18 @@
+# systemd unit: runs the app with uvicorn on localhost:8000.
+# Install: sudo cp deploy/checkout.service /etc/systemd/system/ && sudo systemctl daemon-reload
+#          sudo systemctl enable --now checkout
+# Adjust User and WorkingDirectory to where the app is deployed (e.g. /srv/checkout).
+[Unit]
+Description=checkout FastAPI app
+After=network.target mysql.service
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/srv/checkout
+EnvironmentFile=/srv/checkout/.env
+ExecStart=/srv/checkout/.venv/bin/uvicorn checkout.main:app --host 127.0.0.1 --port 8000 --workers 2 --proxy-headers --forwarded-allow-ips=127.0.0.1
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
