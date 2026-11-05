@@ -13,7 +13,7 @@ sudo install -d -m 755 -o root -g root "$DEST"
 for f in pyproject.toml uv.lock .python-version alembic.ini; do
     sudo install -m 644 -o root -g root "$SRC/$f" "$DEST/$f"
 done
-for d in src migrations; do
+for d in src migrations packages; do
     sudo rsync -a --delete --chown=root:root --exclude='__pycache__' "$SRC/$d/" "$DEST/$d/"
 done
 

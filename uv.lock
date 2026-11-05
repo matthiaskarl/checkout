@@ -6,6 +6,12 @@ resolution-markers = [
     "python_full_version < '3.15'",
 ]
 
+[manifest]
+members = [
+    "checkout",
+    "dicesim",
+]
+
 [[package]]
 name = "agent-detector"
 version = "2.0.0"
@@ -293,6 +299,7 @@ source = { editable = "." }
 dependencies = [
     { name = "alembic" },
     { name = "cryptography" },
+    { name = "dicesim" },
     { name = "fastapi", extra = ["standard"] },
     { name = "jinja2" },
     { name = "pydantic-settings" },
@@ -312,6 +319,7 @@ dev = [
 requires-dist = [
     { name = "alembic", specifier = ">=1.20.1" },
     { name = "cryptography", specifier = ">=50.0.2" },
+    { name = "dicesim", editable = "packages/dicesim" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.162.0" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "pydantic-settings", specifier = ">=2.16.2" },
@@ -416,6 +424,11 @@ sdist = { url = "https://files.pythonhosted.org/packages/cd/eb/77b0cc7fc0235b049
 wheels = [
     { url = "https://files.pythonhosted.org/packages/61/fe/a245e1d579e7abf47208f7c1ce5684caa2cd956ede5ff646d66d0299d9e8/detect_installer-0.2.1-py3-none-any.whl", hash = "sha256:87e2ce7d05cb108b178f8e45bb80d3d88c0cb4b397983345c18ad6562e02e620", size = 5371, upload-time = "2026-09-02T14:14:38.106Z" },
 ]
+
+[[package]]
+name = "dicesim"
+version = "0.1.0"
+source = { editable = "packages/dicesim" }
 
 [[package]]
 name = "dnspython"

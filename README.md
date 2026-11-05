@@ -13,6 +13,9 @@ A small FastAPI + SQLAlchemy + MySQL playground, served behind Apache.
 
 ## Layout
 
+This is a [uv workspace](https://docs.astral.sh/uv/concepts/projects/workspaces/): the web app (`checkout`)
+plus independent library packages in `packages/`.
+
 ```
 src/checkout/
   main.py          FastAPI app + /health
@@ -24,6 +27,7 @@ src/checkout/
 migrations/        Alembic migrations
 tests/             pytest (uses in-memory SQLite, no MySQL needed)
 deploy/            systemd unit + Apache vhost
+packages/dicesim/  standalone library + CLI (no dependencies), see below
 ```
 
 ## Setup
@@ -53,6 +57,31 @@ uv run mypy
 
 Schema changes: edit `models.py`, then
 `uv run alembic revision --autogenerate -m "describe change"` and `uv run alembic upgrade head`.
+
+## dicesim (library + CLI)
+
+Probability of reaching a symbol goal with 5 keep-and-reroll dice in 3 rolls
+(faces 1,2,3 → A; 4,5 → B; 6 → C), either simulated (Monte Carlo, `simulation.py`) or
+calculated exactly (recursion over "symbols still missing × rolls left", `exact.py`).
+Standard library only; no FastAPI, no database.
+
+```bash
+uv run dicesim A A A B C                 # P(A A A B C within 3 rolls) ≈ 0.56  (± 0.01, ...)
+uv run dicesim A A A B C --exact         # P(A A A B C within 3 rolls) = 0.5597  (exact)
+uv run dicesim A A A B C --trials 300    # fewer trials -> wider margin (± ~0.06)
+uv run dicesim B C --json --seed 42      # machine-readable, reproducible
+uv run dicesim --help                    # --rolls, --dice, --faces A,A,A,B,B,C
+```
+
+```python
+from dicesim import exact_probability, simulate
+
+exact_probability(["A", "A", "A", "B", "C"])  # 0.5597...
+result = simulate(["A", "A", "A", "B", "C"], trials=10_000, seed=42)  # estimate
+result.probability, result.standard_error
+```
+
+Build it on its own: `uv build --package dicesim` (wheel works with any Python ≥ 3.11).
 
 ## Frontends (two examples of the same "create item" page)
 
