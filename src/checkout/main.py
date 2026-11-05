@@ -1,19 +1,37 @@
-"""FastAPI application entry point."""
+"""FastAPI application entry point.
 
-from fastapi import FastAPI
+URL layout (identical in dev and behind Apache):
+  /api/...  JSON API (+ OpenAPI docs at /api/docs)
+  /ui/...   server-rendered Jinja2 pages
+"""
+
+from fastapi import APIRouter, FastAPI
 from sqlalchemy import text
 
 from checkout.config import get_settings
 from checkout.db import SessionDep
-from checkout.routers import items
+from checkout.routers import items, pages
 
 settings = get_settings()
 
-app = FastAPI(title=settings.app_name, debug=settings.debug)
-app.include_router(items.router)
+app = FastAPI(
+    title=settings.app_name,
+    debug=settings.debug,
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
+)
+
+api = APIRouter(prefix="/api")
+api.include_router(items.router)
 
 
-@app.get("/health", tags=["meta"])
+@api.get("/health", tags=["meta"])
 def health(session: SessionDep) -> dict[str, str]:
     session.execute(text("SELECT 1"))
     return {"status": "ok", "database": "ok"}
+
+
+# Routes are copied when included, so include `api` after all its routes are defined.
+app.include_router(api)
+app.include_router(pages.router)

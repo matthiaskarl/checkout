@@ -45,7 +45,7 @@ uv run alembic upgrade head
 ## Develop
 
 ```bash
-uv run fastapi dev src/checkout/main.py   # http://127.0.0.1:8000, docs at /docs
+uv run fastapi dev src/checkout/main.py   # http://127.0.0.1:8000, docs at /api/docs
 uv run pytest
 uv run ruff check . && uv run ruff format .
 uv run mypy
@@ -54,18 +54,36 @@ uv run mypy
 Schema changes: edit `models.py`, then
 `uv run alembic revision --autogenerate -m "describe change"` and `uv run alembic upgrade head`.
 
+## Frontends (two examples of the same "create item" page)
+
+| | URL | Code | Rendering |
+|---|---|---|---|
+| Jinja2 | https://localhost/ui/items/new | `src/checkout/routers/pages.py`, `src/checkout/templates/` | server: Python builds the HTML, form posts, page reloads |
+| React | https://localhost/app/ | `frontend/` (Vite + React + TypeScript) | browser: JS builds the DOM, talks JSON to `/api/items` |
+
+React development (hot reload; `/api` is proxied to the uvicorn dev server on :8000):
+
+```bash
+uv run fastapi dev src/checkout/main.py   # terminal 1: backend
+cd frontend && npm install && npm run dev  # terminal 2: http://localhost:5173/app/
+npm run lint && npm run build              # lint (oxlint), type-check + production build to frontend/dist/
+```
+
 ## Deploy behind Apache
 
 ```
 https://HOST/api/...  ->  Apache :443 (TLS, mkcert cert)  ->  uvicorn 127.0.0.1:8100 (systemd "checkout")  ->  MySQL
+https://HOST/ui/...   ->  Apache :443  ->  uvicorn (same app, Jinja2 pages)
+https://HOST/app/...  ->  Apache :443  ->  static files in /srv/checkout/frontend (React build)
 ```
 
 - `deploy/deploy.sh` copies the code to `/srv/checkout`, installs locked deps into its own venv,
-  runs `alembic upgrade head`, installs `deploy/checkout.service` and restarts it.
+  runs `alembic upgrade head`, builds the React frontend and copies it to `/srv/checkout/frontend`,
+  installs `deploy/checkout.service` and restarts it.
   On first run it copies `.env` to `/srv/checkout/.env` (root:www-data, 0640); later edits go there.
-- `deploy/apache-checkout.conf` is the proxy snippet inside the `*:443` vhost
-  (`/etc/apache2/sites-available/default-ssl.conf`). Apache strips `/api`; uvicorn's `--root-path /api`
-  makes docs/redirects use the public prefix.
+- `deploy/apache-checkout.conf` is the proxy + static-files snippet inside the `*:443` vhost
+  (`/etc/apache2/sites-available/default-ssl.conf`). Paths are forwarded unchanged: the app itself
+  defines the `/api` (JSON) and `/ui` (HTML) prefixes, so dev and production URLs are identical.
 - Dev server (`fastapi dev`, port 8000) and the service (port 8100) can run side by side.
 
 ```bash
@@ -74,4 +92,4 @@ systemctl status checkout              # service state
 journalctl -u checkout -f              # app logs
 ```
 
-API: https://localhost/api/items, docs at https://localhost/api/docs
+API: https://localhost/api/items, docs at https://localhost/api/docs, Jinja2 page: https://localhost/ui/items/new

@@ -1,4 +1,4 @@
-# systemd unit: runs the app with uvicorn on 127.0.0.1:8100, behind Apache at /api/.
+# systemd unit: runs the app with uvicorn on 127.0.0.1:8100, behind Apache (/api/ and /ui/).
 # Installed by deploy/deploy.sh to /etc/systemd/system/checkout.service.
 [Unit]
 Description=checkout FastAPI app (uvicorn)
@@ -10,12 +10,9 @@ User=www-data
 Group=www-data
 WorkingDirectory=/srv/checkout
 EnvironmentFile=/srv/checkout/.env
-# --root-path: Apache strips /api/ before proxying; this tells the app its public prefix
-#              (so /docs, redirects and OpenAPI URLs point at /api/...).
 # --proxy-headers: trust X-Forwarded-Proto/For from Apache on localhost (real client IP, https).
 ExecStart=/srv/checkout/.venv/bin/uvicorn checkout.main:app \
     --host 127.0.0.1 --port 8100 --workers 2 \
-    --root-path /api \
     --proxy-headers --forwarded-allow-ips 127.0.0.1
 Restart=on-failure
 RestartSec=2

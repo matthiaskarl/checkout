@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Deploy this checkout to /srv/checkout, run migrations, (re)start the systemd service.
+# Deploy this checkout to /srv/checkout: backend (venv + migrations + systemd service)
+# and the React frontend build (static files served by Apache at /app/).
 # Usage: deploy/deploy.sh        (needs sudo; uv must be on PATH or set UV=/path/to/uv)
 set -euo pipefail
 
@@ -27,6 +28,14 @@ sudo env UV_PYTHON_DOWNLOADS=never UV_LINK_MODE=copy \
 
 echo "==> Running migrations"
 sudo sh -c "cd '$DEST' && .venv/bin/alembic upgrade head"
+
+echo "==> Building frontend (React) and copying to $DEST/frontend"
+(
+    cd "$SRC/frontend"
+    [ -d node_modules ] || npm ci --no-audit --no-fund
+    npm run build --silent
+)
+sudo rsync -a --delete --chown=root:root --chmod=D755,F644 "$SRC/frontend/dist/" "$DEST/frontend/"
 
 echo "==> Installing and restarting service"
 sudo install -m 644 -o root -g root "$SRC/deploy/checkout.service" /etc/systemd/system/checkout.service
