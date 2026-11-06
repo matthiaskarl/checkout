@@ -17,17 +17,29 @@ This is a [uv workspace](https://docs.astral.sh/uv/concepts/projects/workspaces/
 plus independent library packages in `packages/`.
 
 ```
-src/checkout/
-  main.py          FastAPI app + /health
-  config.py        settings (DATABASE_URL, DEBUG)
-  db.py            engine, Base, per-request session dependency
-  models.py        ORM tables
-  schemas.py       Pydantic request/response models
-  routers/items.py CRUD example
-migrations/        Alembic migrations
-tests/             pytest (uses in-memory SQLite, no MySQL needed)
-deploy/            systemd unit + Apache vhost
-packages/dicesim/  standalone library + CLI (no dependencies), see below
+src/checkout/              FastAPI app (backend)
+  main.py                  app, /api + /ui prefixes, /api/health
+  config.py                settings (DATABASE_URL, DEBUG)
+  db.py                    engine, Base, per-request session dependency
+  models.py                ORM tables
+  schemas.py               Pydantic request/response models
+  routers/items.py         /api/items: CRUD example
+  routers/dice.py          /api/dicesim: JSON adapter around the dicesim library
+  routers/pages.py         /ui/...: server-rendered Jinja2 pages
+  templates/               Jinja2 templates (base.html + pages)
+frontend/                  React app (Vite + React + TypeScript), served by Apache at /app/
+  index.html               HTML shell with <div id="root">; Vite injects the built JS/CSS
+  src/main.tsx             entry point: mounts <App /> into #root
+  src/App.tsx              the page component (state, form, items table)
+  src/App.css              styles
+  src/api.ts               typed fetch client for /api (mirrors schemas.py)
+  vite.config.ts           base /app/, dev proxy /api -> uvicorn :8000
+  package.json             npm scripts (dev, build, lint) + dependencies; package-lock.json pins versions
+  dist/                    build output (npm run build), not in git
+migrations/                Alembic migrations
+tests/                     pytest (uses in-memory SQLite, no MySQL needed)
+deploy/                    systemd unit, Apache snippet, deploy.sh
+packages/dicesim/          standalone library + CLI (no dependencies), see below
 ```
 
 ## Setup
@@ -83,6 +95,14 @@ result.probability, result.standard_error
 
 Build it on its own: `uv build --package dicesim` (wheel works with any Python ≥ 3.11).
 
+Over HTTP (`src/checkout/routers/dice.py`, a thin adapter around the library):
+
+```bash
+curl 'https://localhost/api/dicesim?goal=AAABC'                                        # exact (default)
+curl 'https://localhost/api/dicesim?goal=AAABC&method=simulation&trials=20000&seed=1'  # trials ≤ 100000
+```
+Invalid goals return 422 in FastAPI's usual `{"detail": [{"loc": ["query", "goal"], "msg": ...}]}` format.
+
 ## Frontends (two examples of the same "create item" page)
 
 | | URL | Code | Rendering |
@@ -121,4 +141,4 @@ systemctl status checkout              # service state
 journalctl -u checkout -f              # app logs
 ```
 
-API: https://localhost/api/items, docs at https://localhost/api/docs, Jinja2 page: https://localhost/ui/items/new
+API: https://localhost/api/items, https://localhost/api/dicesim, docs at https://localhost/api/docs, Jinja2 page: https://localhost/ui/items/new

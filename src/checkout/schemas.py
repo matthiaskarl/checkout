@@ -24,3 +24,13 @@ class ItemRead(ItemBase):
 
     id: int
     created_at: datetime
+
+
+class DicesimResult(BaseModel):
+    goal: list[str]
+    method: str
+    probability: float = Field(ge=0, le=1)
+    # Only set for method=simulation:
+    trials: int | None = None
+    successes: int | None = None
+    standard_error: float | None = None

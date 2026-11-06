@@ -1,7 +1,7 @@
 """FastAPI application entry point.
 
 URL layout (identical in dev and behind Apache):
-  /api/...  JSON API (+ OpenAPI docs at /api/docs)
+  /api/...  JSON API: /api/items, /api/dicesim (+ OpenAPI docs at /api/docs)
   /ui/...   server-rendered Jinja2 pages
 """
 
@@ -10,7 +10,7 @@ from sqlalchemy import text
 
 from checkout.config import get_settings
 from checkout.db import SessionDep
-from checkout.routers import items, pages
+from checkout.routers import dice, items, pages
 
 settings = get_settings()
 
@@ -24,6 +24,7 @@ app = FastAPI(
 
 api = APIRouter(prefix="/api")
 api.include_router(items.router)
+api.include_router(dice.router)
 
 
 @api.get("/health", tags=["meta"])
