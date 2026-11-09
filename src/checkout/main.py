@@ -2,15 +2,17 @@
 
 URL layout (identical in dev and behind Apache):
   /api/...  JSON API: /api/items, /api/dicesim (+ OpenAPI docs at /api/docs)
-  /ui/...   server-rendered Jinja2 pages
+  /ui/...   server-rendered Jinja2 pages (incl. /ui/login, /ui/logout)
 """
 
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, FastAPI, Request, status
+from fastapi.responses import RedirectResponse
 from sqlalchemy import text
 
+from checkout.auth import LoginRequired
 from checkout.config import get_settings
 from checkout.db import SessionDep
-from checkout.routers import dice, items, pages
+from checkout.routers import dice, items, login, pages
 
 settings = get_settings()
 
@@ -36,3 +38,10 @@ def health(session: SessionDep) -> dict[str, str]:
 # Routes are copied when included, so include `api` after all its routes are defined.
 app.include_router(api)
 app.include_router(pages.router)
+app.include_router(login.router)
+
+
+@app.exception_handler(LoginRequired)
+def redirect_to_login(request: Request, exc: LoginRequired) -> RedirectResponse:
+    url = request.url_for("login_page").include_query_params(next=exc.next_url)
+    return RedirectResponse(url, status.HTTP_303_SEE_OTHER)

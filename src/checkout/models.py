@@ -2,8 +2,8 @@
 
 from datetime import datetime
 
-from sqlalchemy import String, func, true
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import ForeignKey, String, func, true
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from checkout.db import Base
 
@@ -18,6 +18,21 @@ class User(Base):
     # Lets you lock an account without deleting it (and its history).
     is_active: Mapped[bool] = mapped_column(server_default=true())
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class LoginSession(Base):
+    """One row per logged-in browser. The cookie holds a random token; we store only its hash."""
+
+    __tablename__ = "login_sessions"
+
+    # SHA-256 hex of the cookie token: a leaked DB dump contains no usable cookies.
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    # ondelete=CASCADE: deleting a user deletes their sessions in the same step.
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    expires_at: Mapped[datetime]  # naive UTC, set by checkout.sessions
+
+    user: Mapped[User] = relationship(lazy="joined")  # loaded with the session in one query
 
 
 class Item(Base):

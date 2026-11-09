@@ -1,13 +1,15 @@
 """CRUD endpoints for items."""
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 
+from checkout.auth import require_user
 from checkout.db import SessionDep
 from checkout.models import Item
 from checkout.schemas import ItemCreate, ItemRead, ItemUpdate
 
-router = APIRouter(prefix="/items", tags=["items"])
+# Router-level dependency: every route below requires a login, including ones added later.
+router = APIRouter(prefix="/items", tags=["items"], dependencies=[Depends(require_user)])
 
 
 def _get_or_404(session: SessionDep, item_id: int) -> Item:

@@ -13,9 +13,21 @@
     .notice { background: #e6f4ea; border: 1px solid #a8d5b5; padding: .5rem 1rem; border-radius: 4px; }
     table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
     th, td { text-align: left; padding: .4rem; border-bottom: 1px solid #ddd; }
+    .userbar { display: flex; justify-content: flex-end; align-items: center; gap: .75rem; font-size: .9rem; }
+    .userbar form, .userbar button { margin: 0; }
+    .userbar button { padding: .2rem .75rem; }
   </style>
 </head>
 <body>
+  <nav class="userbar">
+    {% if current_user %}
+      <span>Logged in as <strong>{{ current_user.username }}</strong></span>
+      {# Logout is a POST, not a link: a GET could be triggered by any <img> on another site. #}
+      <form method="post" action="{{ url_for('logout') }}"><button type="submit">Log out</button></form>
+    {% elif request.url.path != url_for('login_page').path %}
+      <a href="{{ url_for('login_page') }}">Log in</a>
+    {% endif %}
+  </nav>
   {% block content %}{% endblock %}
 </body>
 </html>
