@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import {
   createItem,
+  isAbort,
   listItems,
   NotLoggedIn,
   ValidationFailed,
@@ -25,12 +26,16 @@ export default function ItemsPage({ onLoggedOut }: Props) {
 
   // Load existing items once, after the first render.
   useEffect(() => {
-    listItems()
+    const controller = new AbortController()
+    listItems(controller.signal)
       .then(setItems)
       .catch((err: unknown) => {
+        if (isAbort(err)) return // cancelled by the cleanup below: nothing to show
         if (err instanceof NotLoggedIn) onLoggedOut()
         else setError(String(err))
       })
+    // An answer arriving after unmount (e.g. logout while loading) is dropped, not rendered.
+    return () => controller.abort()
   }, [onLoggedOut])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {

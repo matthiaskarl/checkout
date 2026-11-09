@@ -69,10 +69,18 @@ async function request(path: string, init: RequestInit = {}): Promise<Response> 
 
 // --- session ---------------------------------------------------------------------------
 
+// `signal` (optional): from an AbortController; aborting cancels the request and the
+// returned promise rejects with an AbortError (see isAbort).
+
+/** True for the error a fetch throws when its AbortController was aborted. */
+export function isAbort(err: unknown): boolean {
+  return err instanceof DOMException && err.name === 'AbortError'
+}
+
 /** The current login, or null if not logged in. */
-export async function getSession(): Promise<SessionInfo | null> {
+export async function getSession(signal?: AbortSignal): Promise<SessionInfo | null> {
   try {
-    const res = await request('/session')
+    const res = await request('/session', { signal })
     if (!res.ok) throw new Error(`Checking login failed (HTTP ${res.status})`)
     const info = (await res.json()) as SessionInfo
     csrfToken = info.csrf_token
@@ -110,8 +118,8 @@ export async function logout(): Promise<void> {
 
 // --- items -----------------------------------------------------------------------------
 
-export async function listItems(): Promise<Item[]> {
-  const res = await request('/items')
+export async function listItems(signal?: AbortSignal): Promise<Item[]> {
+  const res = await request('/items', { signal })
   if (!res.ok) throw new Error(`Loading items failed (HTTP ${res.status})`)
   return res.json()
 }

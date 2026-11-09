@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { getSession, logout, type SessionInfo } from './api'
+import { getSession, isAbort, logout, type SessionInfo } from './api'
 import ItemsPage from './ItemsPage'
 import LoginForm from './LoginForm'
 import './App.css'
@@ -13,9 +13,15 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    getSession()
+    const controller = new AbortController()
+    getSession(controller.signal)
       .then(setSession)
-      .catch((err: unknown) => setError(String(err)))
+      .catch((err: unknown) => {
+        if (!isAbort(err)) setError(String(err))
+      })
+    // Cleanup: React calls this before the effect runs again and on unmount. In dev,
+    // StrictMode mounts twice, so the first request shows up as "(canceled)".
+    return () => controller.abort()
   }, [])
 
   // useCallback: a stable function identity, so ItemsPage's effect doesn't re-run each render.
