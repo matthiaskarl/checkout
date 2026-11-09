@@ -100,7 +100,7 @@ def test_own_and_non_browser_requests_allowed(user_client: TestClient, site: str
     assert user_client.post("/api/items", json={"name": "x"}, headers=headers).status_code == 201
 
 
-def test_cross_site_reads_still_allowed(client: TestClient) -> None:
-    """GETs stay open, e.g. other sites embedding a dicesim result (public API later)."""
-    r = client.get("/api/dicesim?goal=AB", headers={"Sec-Fetch-Site": "cross-site"})
+def test_cross_site_reads_still_allowed(key_client: TestClient) -> None:
+    """GETs aren't blocked by Sec-Fetch-Site, e.g. a dicesim call from another site's page."""
+    r = key_client.get("/api/dicesim?goal=AB", headers={"Sec-Fetch-Site": "cross-site"})
     assert r.status_code == 200

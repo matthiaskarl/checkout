@@ -8,13 +8,15 @@ import re
 os.environ["DATABASE_URL"] = "sqlite://"
 
 from collections.abc import Iterator
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from checkout.apikeys import create_api_key
 from checkout.db import Base, get_session
 from checkout.main import app
 from checkout.models import User
@@ -31,6 +33,13 @@ def session_factory() -> Iterator[sessionmaker[Session]]:
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,  # share one connection so the in-memory DB persists
     )
+
+    # SQLite ignores foreign keys (incl. ON DELETE CASCADE) unless enabled per connection;
+    # MySQL always enforces them. Without this, tests would be more lenient than production.
+    @event.listens_for(engine, "connect")
+    def _enable_foreign_keys(dbapi_connection: Any, _: Any) -> None:
+        dbapi_connection.execute("PRAGMA foreign_keys=ON")
+
     Base.metadata.create_all(engine)
     yield sessionmaker(bind=engine, expire_on_commit=False)
     engine.dispose()
@@ -82,3 +91,17 @@ def user_client(logged_in_client: TestClient) -> TestClient:
     page = logged_in_client.get("/ui/items/new").text
     logged_in_client.headers["X-CSRF-Token"] = csrf_token_from(page)
     return logged_in_client
+
+
+@pytest.fixture
+def api_key(session: Session, user: User) -> str:
+    """A fresh API key for `user`."""
+    key, _ = create_api_key(session, user, "tests")
+    return key
+
+
+@pytest.fixture
+def key_client(client: TestClient, api_key: str) -> TestClient:
+    """`client` that authenticates with an API key only (no session cookie), like a script."""
+    client.headers["Authorization"] = f"Bearer {api_key}"
+    return client

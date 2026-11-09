@@ -5,8 +5,9 @@ from typing import Annotated, TypeGuard
 from urllib.parse import urlsplit
 
 from fastapi import Cookie, Depends, HTTPException, Request, Response, status
-from fastapi.security import APIKeyHeader
+from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 
+from checkout.apikeys import user_for_api_key
 from checkout.db import SessionDep
 from checkout.models import LoginSession, User
 from checkout.sessions import SESSION_LIFETIME, valid_session
@@ -152,3 +153,43 @@ async def require_csrf(
     # compare_digest takes the same time however many leading characters match.
     if not sent or not secrets.compare_digest(sent, login.csrf_token):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "CSRF token missing or invalid")
+
+
+# --- API keys (Authorization: Bearer) -----------------------------------------------------
+
+# HTTPBearer parses "Authorization: Bearer <key>" and adds the "Authorize" field to
+# /api/docs. auto_error=False: no header is fine here, the session is the fallback.
+bearer = HTTPBearer(
+    scheme_name="API key",
+    description="An API key from `checkout-admin create-api-key` (starts with ck_).",
+    auto_error=False,
+)
+BearerCredentials = Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)]
+
+# RFC 9110: a 401 must say which scheme would work. Scripts/tools read this header.
+_BEARER_CHALLENGE = {"WWW-Authenticate": "Bearer"}
+
+
+def require_api_client(
+    db: SessionDep, credentials: BearerCredentials, login: LoginSessionOptional
+) -> User:
+    """For the public API: a valid API key, or else a logged-in browser session.
+
+    - Key sent: it must be valid. No fallback to the cookie, so a broken key shows up
+      as an error instead of silently working in the browser and failing in the script.
+    - No key: the session cookie (our own React/Jinja pages) works too. These routes are
+      GET-only, so the cookie path needs no CSRF check; a key is never sent automatically
+      by the browser, so the key path never needs one.
+    """
+    if credentials is not None:
+        user = user_for_api_key(db, credentials.credentials)
+        if user is None:
+            raise HTTPException(
+                status.HTTP_401_UNAUTHORIZED, "Invalid API key", headers=_BEARER_CHALLENGE
+            )
+        return user
+    if login is not None:
+        return login.user
+    raise HTTPException(
+        status.HTTP_401_UNAUTHORIZED, "API key or login required", headers=_BEARER_CHALLENGE
+    )

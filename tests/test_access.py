@@ -62,6 +62,6 @@ def test_login_ignores_foreign_next(client: TestClient, user: User, evil: str) -
     assert r.headers["location"] == "https://testserver/ui/items/new"
 
 
-@pytest.mark.parametrize("path", ["/api/health", "/api/docs", "/api/dicesim?goal=AB", "/ui/login"])
+@pytest.mark.parametrize("path", ["/api/health", "/api/docs", "/api/openapi.json", "/ui/login"])
 def test_public_routes(client: TestClient, path: str) -> None:
     assert client.get(path).status_code == 200

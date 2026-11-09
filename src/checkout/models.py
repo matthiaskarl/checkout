@@ -38,6 +38,27 @@ class LoginSession(Base):
     user: Mapped[User] = relationship(lazy="joined")  # loaded with the session in one query
 
 
+class ApiKey(Base):
+    """A long-lived key for programmatic API access, sent as `Authorization: Bearer <key>`.
+
+    Like sessions, only a SHA-256 of the key is stored; the key itself is shown once at
+    creation. Revoking = deleting the row.
+    """
+
+    __tablename__ = "api_keys"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(100))  # what it's for, e.g. "laptop script"
+    key_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    # First characters of the key, to recognize it in lists and logs without revealing it.
+    prefix: Mapped[str] = mapped_column(String(12))
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    last_used_at: Mapped[datetime | None]  # naive UTC; shows which keys are still in use
+
+    user: Mapped[User] = relationship(lazy="joined")
+
+
 class Item(Base):
     __tablename__ = "items"
 
