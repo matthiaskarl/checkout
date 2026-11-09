@@ -8,6 +8,7 @@
 {% endif %}
 
 <form method="post" action="{{ url_for('create_item_page') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <label for="name">Name</label>
   <input id="name" name="name" value="{{ form.name }}" maxlength="100" required autofocus>
   {% if errors.name %}<p class="error">{{ errors.name }}</p>{% endif %}

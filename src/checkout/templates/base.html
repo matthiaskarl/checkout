@@ -23,7 +23,10 @@
     {% if current_user %}
       <span>Logged in as <strong>{{ current_user.username }}</strong></span>
       {# Logout is a POST, not a link: a GET could be triggered by any <img> on another site. #}
-      <form method="post" action="{{ url_for('logout') }}"><button type="submit">Log out</button></form>
+      <form method="post" action="{{ url_for('logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit">Log out</button>
+      </form>
     {% elif request.url.path != url_for('login_page').path %}
       <a href="{{ url_for('login_page') }}">Log in</a>
     {% endif %}

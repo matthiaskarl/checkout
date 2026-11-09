@@ -12,7 +12,7 @@ from fastapi.responses import RedirectResponse, Response
 from pydantic import ValidationError
 from sqlalchemy import select
 
-from checkout.auth import CurrentPageUser, require_page_user
+from checkout.auth import CurrentPageUser, require_csrf, require_page_user
 from checkout.db import SessionDep
 from checkout.models import Item, User
 from checkout.schemas import ItemCreate
@@ -22,7 +22,11 @@ from checkout.templating import templates
 # Every page here requires a login (login/logout live in routers/login.py, which stays public).
 # The routes also take `CurrentPageUser` to use the user; FastAPI runs the dependency only
 # once per request and reuses the result, so this costs no second DB lookup.
-router = APIRouter(prefix="/ui", include_in_schema=False, dependencies=[Depends(require_page_user)])
+router = APIRouter(
+    prefix="/ui",
+    include_in_schema=False,
+    dependencies=[Depends(require_page_user), Depends(require_csrf)],
+)
 
 
 def _render_new_item(

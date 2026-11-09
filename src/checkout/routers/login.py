@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Form, Request, status
+from fastapi import APIRouter, Depends, Form, Request, status
 from fastapi.responses import RedirectResponse, Response
 
 from checkout.auth import (
@@ -10,6 +10,7 @@ from checkout.auth import (
     SessionToken,
     clear_session_cookie,
     is_safe_next,
+    require_csrf,
     set_session_cookie,
 )
 from checkout.db import SessionDep
@@ -58,7 +59,9 @@ def login(
     return response
 
 
-@router.post("/logout", name="logout")
+# Login can't check a CSRF token (there's no session yet); the app-wide Sec-Fetch-Site check
+# and SameSite cover it. Logout can, so it does.
+@router.post("/logout", name="logout", dependencies=[Depends(require_csrf)])
 def logout(request: Request, db: SessionDep, token: SessionToken = None) -> Response:
     if token:
         end_session(db, token)  # the row is gone, so a copied cookie is useless from now on

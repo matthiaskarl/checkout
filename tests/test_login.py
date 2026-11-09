@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from checkout.auth import SESSION_COOKIE
 from checkout.models import LoginSession, User
 from checkout.sessions import utcnow
-from tests.conftest import PASSWORD
+from tests.conftest import PASSWORD, csrf_token_from
 
 
 def log_in(client: TestClient, username: str = "alice", password: str = PASSWORD) -> str:
@@ -73,7 +73,8 @@ def test_logout_kills_session_even_for_copied_cookie(
     client: TestClient, user: User, session: Session
 ) -> None:
     token = log_in(client)
-    r = client.post("/ui/logout", follow_redirects=False)
+    csrf = csrf_token_from(client.get("/ui/items/new").text)
+    r = client.post("/ui/logout", data={"csrf_token": csrf}, follow_redirects=False)
     assert r.status_code == 303
     assert session.scalars(select(LoginSession)).all() == []
 

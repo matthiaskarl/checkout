@@ -31,6 +31,9 @@ class LoginSession(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     expires_at: Mapped[datetime]  # naive UTC, set by checkout.sessions
+    # Secret per session, embedded in our own pages/requests. A foreign page can make the
+    # browser send the cookie, but it can't read our pages, so it can't know this value.
+    csrf_token: Mapped[str] = mapped_column(String(64))
 
     user: Mapped[User] = relationship(lazy="joined")  # loaded with the session in one query
 

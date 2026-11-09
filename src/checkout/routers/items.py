@@ -3,13 +3,18 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 
-from checkout.auth import require_user
+from checkout.auth import require_csrf, require_user
 from checkout.db import SessionDep
 from checkout.models import Item
 from checkout.schemas import ItemCreate, ItemRead, ItemUpdate
 
-# Router-level dependency: every route below requires a login, including ones added later.
-router = APIRouter(prefix="/items", tags=["items"], dependencies=[Depends(require_user)])
+# Router-level dependencies: every route below requires a login and (for POST/PATCH/DELETE)
+# the X-CSRF-Token header, including routes added later.
+router = APIRouter(
+    prefix="/items",
+    tags=["items"],
+    dependencies=[Depends(require_user), Depends(require_csrf)],
+)
 
 
 def _get_or_404(session: SessionDep, item_id: int) -> Item:

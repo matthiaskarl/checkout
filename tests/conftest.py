@@ -1,6 +1,7 @@
 """Test fixtures: run the app against an in-memory SQLite DB (no MySQL needed)."""
 
 import os
+import re
 
 # Must be set before importing checkout: settings are read at import time.
 # Overrides any value from .env so tests never touch the real database.
@@ -61,9 +62,23 @@ def user(session: Session) -> User:
     return create_user(session, "alice", PASSWORD)
 
 
+def csrf_token_from(html: str) -> str:
+    match = re.search(r'name="csrf_token" value="([^"]+)"', html)
+    assert match, "no CSRF token in page"
+    return match.group(1)
+
+
 @pytest.fixture
-def user_client(client: TestClient, user: User) -> TestClient:
-    """`client`, already logged in as `user` (the session cookie is kept by the client)."""
+def logged_in_client(client: TestClient, user: User) -> TestClient:
+    """`client`, logged in as `user` but WITHOUT a default CSRF header (for CSRF tests)."""
     r = client.post("/ui/login", data={"username": user.username, "password": PASSWORD})
     assert r.status_code == 200, r.text  # redirect followed to the items page
     return client
+
+
+@pytest.fixture
+def user_client(logged_in_client: TestClient) -> TestClient:
+    """Logged in, and sends the session's CSRF token on every request (like the frontends)."""
+    page = logged_in_client.get("/ui/items/new").text
+    logged_in_client.headers["X-CSRF-Token"] = csrf_token_from(page)
+    return logged_in_client

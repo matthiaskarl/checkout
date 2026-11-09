@@ -43,17 +43,24 @@ def authenticate(db: Session, username: str, password: str) -> User | None:
 def start_session(db: Session, user: User) -> str:
     """Create a session row and return the token for the cookie (never stored as-is)."""
     token = secrets.token_urlsafe(32)  # 32 random bytes from the OS
-    db.add(LoginSession(id=_hash_token(token), user=user, expires_at=utcnow() + SESSION_LIFETIME))
+    db.add(
+        LoginSession(
+            id=_hash_token(token),
+            user=user,
+            expires_at=utcnow() + SESSION_LIFETIME,
+            csrf_token=secrets.token_urlsafe(32),  # a new one per login, never reused
+        )
+    )
     db.commit()
     return token
 
 
-def user_for_token(db: Session, token: str) -> User | None:
-    """The logged-in user for a cookie token, or None if unknown, expired or deactivated."""
+def valid_session(db: Session, token: str) -> LoginSession | None:
+    """The session for a cookie token, or None if unknown, expired or the user is deactivated."""
     login = db.get(LoginSession, _hash_token(token))
     if login is None or login.expires_at <= utcnow() or not login.user.is_active:
         return None
-    return login.user
+    return login
 
 
 def end_session(db: Session, token: str) -> None:

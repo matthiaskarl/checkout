@@ -1,13 +1,14 @@
 """HTTP side of authentication: the session cookie and FastAPI dependencies."""
 
+import secrets
 from typing import Annotated, TypeGuard
 from urllib.parse import urlsplit
 
 from fastapi import Cookie, Depends, HTTPException, Request, Response, status
 
 from checkout.db import SessionDep
-from checkout.models import User
-from checkout.sessions import SESSION_LIFETIME, user_for_token
+from checkout.models import LoginSession, User
+from checkout.sessions import SESSION_LIFETIME, valid_session
 
 SESSION_COOKIE = "session"
 
@@ -31,9 +32,21 @@ def clear_session_cookie(response: Response) -> None:
 SessionToken = Annotated[str | None, Cookie(alias=SESSION_COOKIE)]
 
 
-def get_current_user_optional(db: SessionDep, token: SessionToken = None) -> User | None:
+def get_login_session_optional(
+    request: Request, db: SessionDep, token: SessionToken = None
+) -> LoginSession | None:
+    """The current login session, or None. Everything else below builds on this."""
+    login = valid_session(db, token) if token else None
+    request.state.login_session = login  # lets templates fill in csrf_token (templating.py)
+    return login
+
+
+LoginSessionOptional = Annotated[LoginSession | None, Depends(get_login_session_optional)]
+
+
+def get_current_user_optional(login: LoginSessionOptional) -> User | None:
     """The logged-in user, or None (for pages that work with and without login)."""
-    return user_for_token(db, token) if token else None
+    return login.user if login else None
 
 
 CurrentUserOptional = Annotated[User | None, Depends(get_current_user_optional)]
@@ -83,3 +96,44 @@ def is_safe_next(url: str | None) -> TypeGuard[str]:
         return False  # browsers treat "//host" and "/\\host" as "another host"
     parts = urlsplit(url)
     return not parts.scheme and not parts.netloc
+
+
+# --- CSRF ---------------------------------------------------------------------------------
+
+# Methods that must not change anything (we keep it that way), so they need no CSRF check.
+SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+CSRF_FIELD = "csrf_token"  # hidden form field (Jinja2 forms)
+CSRF_HEADER = "X-CSRF-Token"  # request header (fetch from React, htmx)
+FORM_TYPES = ("application/x-www-form-urlencoded", "multipart/form-data")
+
+
+def reject_cross_site_requests(request: Request) -> None:
+    """Layer 1 (app-wide): refuse state-changing requests that the browser marks as foreign.
+
+    Browsers add `Sec-Fetch-Site` to every request to HTTPS or localhost: "same-origin",
+    "same-site" (other port/subdomain, e.g. the localhost:9000 demo), "cross-site" or
+    "none" (typed URL, bookmark). Pages can't forge it. Clients like curl or scripts don't
+    send it at all, so a missing header is allowed; the token check below covers those.
+    """
+    if request.method in SAFE_METHODS:
+        return
+    site = request.headers.get("sec-fetch-site")
+    if site is not None and site not in ("same-origin", "none"):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Cross-origin request blocked")
+
+
+async def require_csrf(request: Request, login: LoginSessionOptional) -> None:
+    """Layer 2 (per router): state-changing requests must echo the session's CSRF token.
+
+    async because reading the form body is async. Starlette caches the parsed form, so the
+    route's own Form(...) parameters still work afterwards.
+    """
+    if request.method in SAFE_METHODS or login is None:
+        return  # no session cookie -> nothing to forge; require_user handles anonymous calls
+    sent = request.headers.get(CSRF_HEADER)
+    if sent is None and request.headers.get("content-type", "").startswith(FORM_TYPES):
+        value = (await request.form()).get(CSRF_FIELD)
+        sent = value if isinstance(value, str) else None
+    # compare_digest takes the same time however many leading characters match.
+    if not sent or not secrets.compare_digest(sent, login.csrf_token):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "CSRF token missing or invalid")

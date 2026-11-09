@@ -5,11 +5,11 @@ URL layout (identical in dev and behind Apache):
   /ui/...   server-rendered Jinja2 pages (incl. /ui/login, /ui/logout)
 """
 
-from fastapi import APIRouter, FastAPI, Request, status
+from fastapi import APIRouter, Depends, FastAPI, Request, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy import text
 
-from checkout.auth import LoginRequired
+from checkout.auth import LoginRequired, reject_cross_site_requests
 from checkout.config import get_settings
 from checkout.db import SessionDep
 from checkout.routers import dice, items, login, pages
@@ -22,6 +22,8 @@ app = FastAPI(
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
+    # App-wide: applies to every route, including /ui/login and anything added later.
+    dependencies=[Depends(reject_cross_site_requests)],
 )
 
 api = APIRouter(prefix="/api")
