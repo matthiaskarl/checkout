@@ -5,6 +5,7 @@ from typing import Annotated, TypeGuard
 from urllib.parse import urlsplit
 
 from fastapi import Cookie, Depends, HTTPException, Request, Response, status
+from fastapi.security import APIKeyHeader
 
 from checkout.db import SessionDep
 from checkout.models import LoginSession, User
@@ -122,7 +123,22 @@ def reject_cross_site_requests(request: Request) -> None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Cross-origin request blocked")
 
 
-async def require_csrf(request: Request, login: LoginSessionOptional) -> None:
+# Reading the header via APIKeyHeader (instead of request.headers) documents it in OpenAPI:
+# /api/docs gets an "Authorize" button where you paste the token from GET /api/session.
+# auto_error=False: a missing header isn't an error here, we decide below.
+csrf_header = APIKeyHeader(
+    name=CSRF_HEADER,
+    scheme_name="CSRF token",
+    description="Value of csrf_token from GET /api/session (writes only).",
+    auto_error=False,
+)
+
+
+async def require_csrf(
+    request: Request,
+    login: LoginSessionOptional,
+    sent: Annotated[str | None, Depends(csrf_header)],
+) -> None:
     """Layer 2 (per router): state-changing requests must echo the session's CSRF token.
 
     async because reading the form body is async. Starlette caches the parsed form, so the
@@ -130,7 +146,6 @@ async def require_csrf(request: Request, login: LoginSessionOptional) -> None:
     """
     if request.method in SAFE_METHODS or login is None:
         return  # no session cookie -> nothing to forge; require_user handles anonymous calls
-    sent = request.headers.get(CSRF_HEADER)
     if sent is None and request.headers.get("content-type", "").startswith(FORM_TYPES):
         value = (await request.form()).get(CSRF_FIELD)
         sent = value if isinstance(value, str) else None

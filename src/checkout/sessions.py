@@ -40,19 +40,27 @@ def authenticate(db: Session, username: str, password: str) -> User | None:
     return user
 
 
-def start_session(db: Session, user: User) -> str:
-    """Create a session row and return the token for the cookie (never stored as-is)."""
+def start_session(
+    db: Session, user: User, *, replaces: str | None = None
+) -> tuple[str, LoginSession]:
+    """Create a session row; return the token for the cookie (never stored as-is) and the row.
+
+    `replaces`: the browser's previous session token, if any (e.g. logging in as someone
+    else). It is ended. The new token is always brand-new, never one the browser had before;
+    otherwise an attacker could plant a known token ("session fixation").
+    """
+    if replaces:
+        end_session(db, replaces)
     token = secrets.token_urlsafe(32)  # 32 random bytes from the OS
-    db.add(
-        LoginSession(
-            id=_hash_token(token),
-            user=user,
-            expires_at=utcnow() + SESSION_LIFETIME,
-            csrf_token=secrets.token_urlsafe(32),  # a new one per login, never reused
-        )
+    login = LoginSession(
+        id=_hash_token(token),
+        user=user,
+        expires_at=utcnow() + SESSION_LIFETIME,
+        csrf_token=secrets.token_urlsafe(32),  # a new one per login, never reused
     )
+    db.add(login)
     db.commit()
-    return token
+    return token, login
 
 
 def valid_session(db: Session, token: str) -> LoginSession | None:

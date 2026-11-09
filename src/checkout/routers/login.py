@@ -47,11 +47,7 @@ def login(
             request, "login.html", context, status_code=status.HTTP_401_UNAUTHORIZED
         )
 
-    if old_token:  # logging in again (e.g. as someone else) replaces the previous session
-        end_session(db, old_token)
-    # Always a brand-new token after login, never one the browser had before
-    # (otherwise an attacker could plant a known token: "session fixation").
-    token = start_session(db, user)
+    token, _ = start_session(db, user, replaces=old_token)
     # Back to the page that sent us here, but only if it's on this site (see is_safe_next).
     target = next if is_safe_next(next) else str(request.url_for("new_item_page"))
     response = RedirectResponse(target, status.HTTP_303_SEE_OTHER)
