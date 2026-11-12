@@ -20,7 +20,7 @@ def test_create_redirects_and_shows_item(user_client: TestClient) -> None:
 
     page = user_client.get(r.headers["location"])
     assert "Created item #1: <strong>Teapot</strong>" in page.text
-    assert '<tr class="new">' in page.text  # the new row is highlighted
+    assert '<tr id="item-1" class="new">' in page.text  # the new row is highlighted
     assert "short and stout" in page.text
     assert user_client.get("/api/items/1").json()["name"] == "Teapot"
 

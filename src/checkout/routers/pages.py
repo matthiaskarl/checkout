@@ -4,6 +4,8 @@
   /ui/items                list of all items, delete per row
   /ui/items/new            create form (GET shows it, POST saves)
   /ui/items/{id}/edit      edit form, same template (POST, since HTML forms can't PATCH)
+  /ui/items/{id}/row       one table row as an HTML fragment (htmx inline editing):
+                           GET = display row, GET .../row/edit = edit row, PUT = save
   /ui/items/{id}/delete    POST only: deleting must never be a GET (links, prefetching)
 
 Pattern: GET renders the form; POST validates and either re-renders the form with
@@ -198,3 +200,67 @@ def update_item_page(
 
     url = request.url_for("items_page").include_query_params(updated=item.id)
     return RedirectResponse(url, status_code=status.HTTP_303_SEE_OTHER)
+
+
+# --- inline editing (htmx fragments) ------------------------------------------------------
+
+
+def _render_row(
+    request: Request,
+    item: Item,
+    *,
+    editing: bool = False,
+    form: dict[str, str] | None = None,
+    errors: dict[str, str] | None = None,
+    highlight: bool = False,
+    status_code: int = status.HTTP_200_OK,
+) -> Response:
+    """A single <tr>: the display row, or the edit row (`editing=True`)."""
+    template = "_item_row_edit.html" if editing else "_item_row.html"
+    context: dict[str, Any] = {
+        "item": item,
+        "form": form or {"name": item.name, "description": item.description or ""},
+        "errors": errors or {},
+        "highlight": highlight,
+    }
+    return templates.TemplateResponse(request, template, context, status_code=status_code)
+
+
+@router.get("/items/{item_id}/row", name="item_row")
+def item_row(request: Request, session: SessionDep, item_id: int) -> Response:
+    """Display row, e.g. after Cancel: the stored values, unchanged."""
+    return _render_row(request, _get_item_or_404(session, item_id))
+
+
+@router.get("/items/{item_id}/row/edit", name="item_row_edit")
+def item_row_edit(request: Request, session: SessionDep, item_id: int) -> Response:
+    return _render_row(request, _get_item_or_404(session, item_id), editing=True)
+
+
+@router.put("/items/{item_id}/row", name="update_item_row")
+def update_item_row(
+    request: Request,
+    session: SessionDep,
+    item_id: int,
+    name: Annotated[str, Form()] = "",
+    description: Annotated[str, Form()] = "",
+) -> Response:
+    """Save an inline edit. PUT (full update), which htmx can send, unlike plain forms.
+
+    The validation and the update itself are the same as for the edit page.
+    """
+    item = _get_item_or_404(session, item_id)
+    result = _validate(name, description)
+    if isinstance(result, dict):
+        return _render_row(
+            request,
+            item,
+            editing=True,
+            form={"name": name, "description": description},
+            errors=result,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,  # swapped: see htmx-config
+        )
+    item.name = result.name
+    item.description = result.description
+    session.commit()
+    return _render_row(request, item, highlight=True)

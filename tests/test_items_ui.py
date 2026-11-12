@@ -141,7 +141,7 @@ def test_edit_saves_and_redirects(user_client: TestClient) -> None:
     assert r.headers["location"].endswith(f"/ui/items?updated={item_id}")
     page = user_client.get(r.headers["location"]).text
     assert f"Saved item #{item_id}: <strong>Kettle</strong>" in page
-    assert '<tr class="new">' in page
+    assert f'<tr id="item-{item_id}" class="new">' in page
 
     item = user_client.get(f"/api/items/{item_id}").json()
     assert item["name"] == "Kettle"  # stripped
@@ -168,3 +168,67 @@ def test_edit_needs_csrf(logged_in_client: TestClient) -> None:
     item_id = create_with_token(logged_in_client, csrf, "Teapot")
     r = logged_in_client.post(f"/ui/items/{item_id}/edit", data={"name": "Hacked"})
     assert r.status_code == 403
+
+
+# --- inline editing (htmx row fragments) ------------------------------------------------------
+
+
+def test_edit_link_is_inline_with_page_fallback(user_client: TestClient) -> None:
+    item_id = create(user_client, "Teapot")
+    page = user_client.get("/ui/items").text
+    assert f'href="https://testserver/ui/items/{item_id}/edit"' in page  # without JS
+    assert f'hx-get="https://testserver/ui/items/{item_id}/row/edit"' in page  # with htmx
+
+
+def test_edit_row_fragment(user_client: TestClient) -> None:
+    item_id = create(user_client, "Teapot")
+    r = user_client.get(f"/ui/items/{item_id}/row/edit")
+    assert r.status_code == 200
+    assert r.text.strip().startswith(f'<tr id="item-{item_id}" class="editing"')
+    assert "<html" not in r.text
+    assert f'form="edit-item-{item_id}" name="name" value="Teapot"' in r.text
+    assert f'hx-put="https://testserver/ui/items/{item_id}/row"' in r.text
+
+
+def test_cancel_returns_display_row(user_client: TestClient) -> None:
+    item_id = create(user_client, "Teapot")
+    r = user_client.get(f"/ui/items/{item_id}/row")
+    assert r.text.strip().startswith(f'<tr id="item-{item_id}">')
+    assert "<td>Teapot</td>" in r.text
+
+
+def test_inline_save(user_client: TestClient) -> None:
+    item_id = create(user_client, "Teapot")
+    r = user_client.put(f"/ui/items/{item_id}/row", data={"name": " Kettle ", "description": "hot"})
+    assert r.status_code == 200
+    assert r.text.strip().startswith(f'<tr id="item-{item_id}" class="new">')
+    assert "<td>Kettle</td>" in r.text
+    assert user_client.get(f"/api/items/{item_id}").json()["description"] == "hot"
+
+
+def test_inline_invalid_returns_edit_row_with_422(user_client: TestClient) -> None:
+    item_id = create(user_client, "Teapot")
+    r = user_client.put(f"/ui/items/{item_id}/row", data={"name": " ", "description": "x"})
+    assert r.status_code == 422
+    assert 'class="editing"' in r.text
+    assert '<p class="error">' in r.text
+    assert 'name="description" value="x"' in r.text  # what was typed is kept
+    assert user_client.get(f"/api/items/{item_id}").json()["name"] == "Teapot"
+
+
+def test_inline_save_needs_csrf(logged_in_client: TestClient) -> None:
+    csrf = csrf_token_from(logged_in_client.get("/ui/items").text)
+    item_id = create_with_token(logged_in_client, csrf, "Teapot")
+    r = logged_in_client.put(f"/ui/items/{item_id}/row", data={"name": "Hacked"})
+    assert r.status_code == 403
+
+
+def test_inline_missing_item(user_client: TestClient) -> None:
+    assert user_client.get("/ui/items/999/row/edit").status_code == 404
+    assert user_client.put("/ui/items/999/row", data={"name": "x"}).status_code == 404
+
+
+def test_htmx_config_swaps_422(user_client: TestClient) -> None:
+    page = user_client.get("/ui/items").text
+    assert '<meta name="htmx-config"' in page
+    assert '{"code": "422", "swap": true}' in page
