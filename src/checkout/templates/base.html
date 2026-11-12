@@ -4,33 +4,54 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}checkout{% endblock %}</title>
+  {# htmx, vendored (src/checkout/static). The version in the file name doubles as cache busting. #}
+  <script src="{{ url_for('static', path='htmx-2.0.4.min.js') }}" defer></script>
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; color: #222; }
+    body { font-family: system-ui, sans-serif; max-width: 48rem; margin: 2rem auto; padding: 0 1rem; color: #222; }
     label { display: block; margin-top: 1rem; font-weight: 600; }
     input, textarea { width: 100%; padding: .5rem; font: inherit; box-sizing: border-box; }
-    button { margin-top: 1rem; padding: .5rem 1.25rem; font: inherit; cursor: pointer; }
+    button, .button { margin-top: 1rem; padding: .5rem 1.25rem; font: inherit; cursor: pointer; }
+    .button { display: inline-block; border: 1px solid #888; border-radius: 3px; background: #f0f0f0; color: inherit; text-decoration: none; }
     .error { color: #b00020; font-size: .9rem; }
     .notice { background: #e6f4ea; border: 1px solid #a8d5b5; padding: .5rem 1rem; border-radius: 4px; }
     table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
-    th, td { text-align: left; padding: .4rem; border-bottom: 1px solid #ddd; }
-    .userbar { display: flex; justify-content: flex-end; align-items: center; gap: .75rem; font-size: .9rem; }
+    th, td { text-align: left; padding: .4rem; border-bottom: 1px solid #ddd; vertical-align: top; }
+    td.actions { white-space: nowrap; text-align: right; }
+    td.actions form { display: inline; }
+    td.actions button { margin: 0; padding: .15rem .6rem; }
+    /* htmx adds .htmx-request while a request runs: fade the row being deleted. */
+    tr.htmx-request { opacity: .4; transition: opacity .2s; }
+    header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; font-size: .9rem; border-bottom: 1px solid #ddd; padding-bottom: .5rem; }
+    header nav a { margin-right: 1rem; }
+    .userbar { display: flex; align-items: center; gap: .75rem; }
     .userbar form, .userbar button { margin: 0; }
     .userbar button { padding: .2rem .75rem; }
   </style>
 </head>
-<body>
-  <nav class="userbar">
-    {% if current_user %}
-      <span>Logged in as <strong>{{ current_user.username }}</strong></span>
-      {# Logout is a POST, not a link: a GET could be triggered by any <img> on another site. #}
-      <form method="post" action="{{ url_for('logout') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <button type="submit">Log out</button>
-      </form>
-    {% elif request.url.path != url_for('login_page').path %}
-      <a href="{{ url_for('login_page') }}">Log in</a>
-    {% endif %}
-  </nav>
+{# hx-headers is inherited by every htmx request on the page: the CSRF token travels along
+   automatically, like the hidden field does for plain forms. tojson makes it valid,
+   HTML-safe JSON. #}
+<body{% if csrf_token %} hx-headers='{{ {"X-CSRF-Token": csrf_token} | tojson }}'{% endif %}>
+  <header>
+    <nav>
+      {% if current_user %}
+        <a href="{{ url_for('items_page') }}">Items</a>
+        <a href="{{ url_for('new_item_page') }}">New item</a>
+      {% endif %}
+    </nav>
+    <div class="userbar">
+      {% if current_user %}
+        <span>Logged in as <strong>{{ current_user.username }}</strong></span>
+        {# Logout is a POST, not a link: a GET could be triggered by any <img> on another site. #}
+        <form method="post" action="{{ url_for('logout') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit">Log out</button>
+        </form>
+      {% elif request.url.path != url_for('login_page').path %}
+        <a href="{{ url_for('login_page') }}">Log in</a>
+      {% endif %}
+    </div>
+  </header>
   {% block content %}{% endblock %}
 </body>
 </html>

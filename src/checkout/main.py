@@ -5,8 +5,11 @@ URL layout (identical in dev and behind Apache):
   /ui/...   server-rendered Jinja2 pages (incl. /ui/login, /ui/logout)
 """
 
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, FastAPI, Request, status
 from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from checkout.auth import LoginRequired, reject_cross_site_requests
@@ -42,6 +45,13 @@ def health(session: SessionDep) -> dict[str, str]:
 app.include_router(api)
 app.include_router(pages.router)
 app.include_router(login.router)
+# CSS/JS for the Jinja2 pages (htmx). Under /ui/ so Apache's existing /ui/ proxy covers it;
+# `name="static"` is what templates use: url_for('static', path='...').
+app.mount(
+    "/ui/static",
+    StaticFiles(directory=Path(__file__).resolve().parent / "static"),
+    name="static",
+)
 
 
 @app.exception_handler(LoginRequired)

@@ -59,7 +59,7 @@ def test_login_ignores_foreign_next(client: TestClient, user: User, evil: str) -
         data={"username": "alice", "password": PASSWORD, "next": evil},
         follow_redirects=False,
     )
-    assert r.headers["location"] == "https://testserver/ui/items/new"
+    assert r.headers["location"] == "https://testserver/ui/items"
 
 
 @pytest.mark.parametrize("path", ["/api/health", "/api/docs", "/api/openapi.json", "/ui/login"])

@@ -49,7 +49,7 @@ def login(
 
     token, _ = start_session(db, user, replaces=old_token)
     # Back to the page that sent us here, but only if it's on this site (see is_safe_next).
-    target = next if is_safe_next(next) else str(request.url_for("new_item_page"))
+    target = next if is_safe_next(next) else str(request.url_for("items_page"))
     response = RedirectResponse(target, status.HTTP_303_SEE_OTHER)
     set_session_cookie(response, token)
     return response

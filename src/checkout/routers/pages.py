@@ -1,14 +1,19 @@
-"""Server-rendered HTML pages (Jinja2).
+"""Server-rendered HTML pages (Jinja2), the small admin UI for items.
+
+  /ui/                     -> redirect to the list
+  /ui/items                list of all items, delete per row
+  /ui/items/new            create form (GET shows it, POST saves)
+  /ui/items/{id}/delete    POST only: deleting must never be a GET (links, prefetching)
 
 Pattern: GET renders the form; POST validates and either re-renders the form with
-errors (422) or saves and redirects back (303, "Post/Redirect/Get") so a browser
-refresh doesn't submit the form twice.
+errors (422) or saves and redirects (303, "Post/Redirect/Get") so a browser refresh
+doesn't submit the form twice.
 """
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Form, Request, status
-from fastapi.responses import RedirectResponse, Response
+from fastapi import APIRouter, Depends, Form, Header, HTTPException, Request, status
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from pydantic import ValidationError
 from sqlalchemy import select
 
@@ -27,6 +32,45 @@ router = APIRouter(
     include_in_schema=False,
     dependencies=[Depends(require_page_user), Depends(require_csrf)],
 )
+
+
+@router.get("/", name="ui_home")
+def ui_home(request: Request) -> Response:
+    return RedirectResponse(request.url_for("items_page"), status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/items", name="items_page")
+def items_page(
+    request: Request,
+    session: SessionDep,
+    current_user: CurrentPageUser,
+    deleted: int | None = None,
+) -> Response:
+    items = session.scalars(select(Item).order_by(Item.id.desc())).all()
+    context = {"items": items, "deleted": deleted, "current_user": current_user}
+    return templates.TemplateResponse(request, "items_list.html", context)
+
+
+@router.post("/items/{item_id}/delete", name="delete_item_page")
+def delete_item_page(
+    request: Request,
+    session: SessionDep,
+    item_id: int,
+    hx_request: Annotated[str | None, Header()] = None,
+) -> Response:
+    """One route for both kinds of caller, told apart by htmx's `HX-Request: true` header."""
+    item = session.get(Item, item_id)
+    if item is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Item not found")
+    session.delete(item)
+    session.commit()
+
+    if hx_request == "true":
+        # htmx swaps this (empty) body in place of the row -> the row disappears.
+        # 200, not 204: htmx deliberately does nothing on 204 No Content.
+        return HTMLResponse("")
+    url = request.url_for("items_page").include_query_params(deleted=item_id)
+    return RedirectResponse(url, status.HTTP_303_SEE_OTHER)
 
 
 def _render_new_item(

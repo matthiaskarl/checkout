@@ -32,7 +32,7 @@ def test_login_sets_hardened_cookie(client: TestClient, user: User) -> None:
         "/ui/login", data={"username": "Alice", "password": PASSWORD}, follow_redirects=False
     )
     assert r.status_code == 303
-    assert r.headers["location"].endswith("/ui/items/new")
+    assert r.headers["location"].endswith("/ui/items")
     cookie = r.headers["set-cookie"].lower()
     for flag in ("httponly", "secure", "samesite=lax", "path=/", "max-age=604800"):
         assert flag in cookie
