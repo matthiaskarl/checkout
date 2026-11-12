@@ -8,12 +8,14 @@ from enum import StrEnum
 from typing import Annotated
 
 import dicesim
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from fastapi.exceptions import RequestValidationError
 
+from checkout.auth import require_api_client
 from checkout.schemas import DicesimResult
 
-router = APIRouter(prefix="/dicesim", tags=["dicesim"])
+# Public API: API key (Authorization: Bearer) or a browser session, see require_api_client.
+router = APIRouter(prefix="/dicesim", tags=["dicesim"], dependencies=[Depends(require_api_client)])
 
 MAX_TRIALS = 100_000  # ~0.5 s per request; keeps a single request from hogging a worker
 

@@ -34,3 +34,15 @@ class DicesimResult(BaseModel):
     trials: int | None = None
     successes: int | None = None
     standard_error: float | None = None
+
+
+class LoginRequest(BaseModel):
+    username: str = Field(max_length=50)
+    password: str = Field(max_length=1024)  # argon2 doesn't need a limit; this caps abuse
+
+
+class SessionInfo(BaseModel):
+    """What an SPA needs to know about its login (it can't read the HttpOnly cookie)."""
+
+    username: str
+    csrf_token: str  # send back as X-CSRF-Token on POST/PATCH/DELETE

@@ -1,0 +1,41 @@
+A small playground/demo API/web based DB UI adapter/interface to demonstrate common web app dev tech with user authentication, templating,API Backend, partial rerendering.
+
+Stack:
+- SPA: React+TypeScript
+- Template based UI/API Backend/ORM: fastAPI,Jinja2,htmx,sqlalchemy,......
+
+-------------------------------------------------------------------------
+
+so, lets plan for:
+
+1)
+- "complete" Jinja2 UI for basic work on table item in the DB:
+
+
+a) /items -> new page that only lists all items and has a create new button, every row with a delete and edit icon (or link)  ....can be "/items/all" or similar, if that fits the current routers better.
+
+/items/new -> *unchanged in function and data display*
+b) /items/delete -> not sure, maybe just a delete API call and reload (inform me about Jinja capabilities for a confirmation dialog(*nice to have*) ) 
+c) /items/edit -> new page similar to the existing new route" going into API patch method
+
+d) some basic table magic, jquery datatables alike
+
+--
+now it should basically resemble a little admin UI for a single DB table (I think that is enough for a basics demo project, I'd rather branch out for shop or business logic examples later and keep this one as underlying barebones. So don't mind the project name "checkout" too much)
+--
+
+2)
+introducing htmx for Jinja to have a little partial reload example:
+lets try a section (collapsible if possible) in the new all items overview where one can do the dicesim for fun. keep it simple, just 5 option selects/dropdown to choose from null through A,B,C, a calculate button that calls the dice API and only rerenders its section in the page to show the result probability.
+
+3)
+same for the React SPA
+
+i leave it to you, adapting the React part after fastAPI/Jinja/htmx is done or in simultaneous steps, whatever you deem easier.
+
+4) Bonus:
+- inline editing. I assume a complete new page (edit all) would work with Jinja, but templates are most likely not dynamic enough for single line inline edit directly on the overview page???
+
+
+        
+        

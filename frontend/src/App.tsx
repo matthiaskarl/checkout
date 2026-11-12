@@ -1,113 +1,52 @@
-import { useEffect, useState, type FormEvent } from 'react'
-import { createItem, listItems, ValidationFailed, type FieldErrors, type Item } from './api'
+import { useCallback, useEffect, useState } from 'react'
+import { getSession, isAbort, logout, type SessionInfo } from './api'
+import ItemsPage from './ItemsPage'
+import LoginForm from './LoginForm'
 import './App.css'
 
+/**
+ * The login "gate": asks the server once who is logged in, then shows either the login
+ * form or the app. undefined = still asking, null = not logged in.
+ */
 export default function App() {
-  // Component state: whenever one of these changes, React re-renders the component.
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [errors, setErrors] = useState<FieldErrors>({})
+  const [session, setSession] = useState<SessionInfo | null | undefined>(undefined)
   const [error, setError] = useState<string | null>(null)
-  const [created, setCreated] = useState<Item | null>(null)
-  const [items, setItems] = useState<Item[]>([])
-  const [submitting, setSubmitting] = useState(false)
 
-  // Load existing items once, after the first render.
   useEffect(() => {
-    listItems()
-      .then(setItems)
-      .catch((err: unknown) => setError(String(err)))
+    const controller = new AbortController()
+    getSession(controller.signal)
+      .then(setSession)
+      .catch((err: unknown) => {
+        if (!isAbort(err)) setError(String(err))
+      })
+    // Cleanup: React calls this before the effect runs again and on unmount. In dev,
+    // StrictMode mounts twice, so the first request shows up as "(canceled)".
+    return () => controller.abort()
   }, [])
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault() // stop the browser's default full-page form submit
-    setSubmitting(true)
-    setErrors({})
-    setError(null)
-    try {
-      const item = await createItem({
-        name: name.trim(),
-        description: description.trim() || null,
-      })
-      setCreated(item)
-      setItems((prev) => [...prev, item]) // update the table without reloading
-      setName('')
-      setDescription('')
-    } catch (err) {
-      if (err instanceof ValidationFailed) setErrors(err.fieldErrors)
-      else setError(String(err))
-    } finally {
-      setSubmitting(false)
-    }
+  // useCallback: a stable function identity, so ItemsPage's effect doesn't re-run each render.
+  const handleLoggedOut = useCallback(() => setSession(null), [])
+
+  async function handleLogout() {
+    await logout()
+    setSession(null)
   }
 
-  const latest = [...items].sort((a, b) => b.id - a.id).slice(0, 10)
+  if (error) return <p className="error">{error}</p>
+  if (session === undefined) return <p>Loading…</p>
+  if (session === null) return <LoginForm onLogin={setSession} />
 
   return (
     <>
-      <h1>New item</h1>
-
-      {created && (
-        <p className="notice">
-          Created item #{created.id}: <strong>{created.name}</strong>
-        </p>
-      )}
-      {error && <p className="error">{error}</p>}
-
-      <form onSubmit={handleSubmit}>
-        <label htmlFor="name">Name</label>
-        <input
-          id="name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          maxLength={100}
-          required
-          autoFocus
-        />
-        {errors.name && <p className="error">{errors.name}</p>}
-
-        <label htmlFor="description">Description</label>
-        <textarea
-          id="description"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={3}
-          maxLength={500}
-        />
-        {errors.description && <p className="error">{errors.description}</p>}
-
-        <button type="submit" disabled={submitting}>
-          {submitting ? 'Saving…' : 'Create'}
+      <nav className="userbar">
+        <span>
+          Logged in as <strong>{session.username}</strong>
+        </span>
+        <button type="button" onClick={handleLogout}>
+          Log out
         </button>
-      </form>
-
-      <h2>Latest items</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Name</th>
-            <th>Description</th>
-            <th>Created</th>
-          </tr>
-        </thead>
-        <tbody>
-          {latest.length === 0 ? (
-            <tr>
-              <td colSpan={4}>No items yet.</td>
-            </tr>
-          ) : (
-            latest.map((item) => (
-              <tr key={item.id}>
-                <td>{item.id}</td>
-                <td>{item.name}</td>
-                <td>{item.description ?? ''}</td>
-                <td>{item.created_at.replace('T', ' ').slice(0, 16)}</td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+      </nav>
+      <ItemsPage onLoggedOut={handleLoggedOut} />
     </>
   )
 }
