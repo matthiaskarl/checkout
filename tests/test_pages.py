@@ -16,10 +16,11 @@ def test_create_redirects_and_shows_item(user_client: TestClient) -> None:
         follow_redirects=False,
     )
     assert r.status_code == 303
-    assert "/ui/items/new?created=" in r.headers["location"]
+    assert r.headers["location"].endswith("/ui/items?created=1")  # to the list, not back
 
     page = user_client.get(r.headers["location"])
-    assert "Created item #1" in page.text
+    assert "Created item #1: <strong>Teapot</strong>" in page.text
+    assert '<tr class="new">' in page.text  # the new row is highlighted
     assert "short and stout" in page.text
     assert user_client.get("/api/items/1").json()["name"] == "Teapot"
 

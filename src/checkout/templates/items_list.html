@@ -3,6 +3,9 @@
 {% block content %}
 <h1>Items</h1>
 
+{% if created %}
+  <p class="notice">Created item #{{ created.id }}: <strong>{{ created.name }}</strong></p>
+{% endif %}
 {% if deleted %}<p class="notice">Deleted item #{{ deleted }}.</p>{% endif %}
 
 <a class="button" href="{{ url_for('new_item_page') }}">+ New item</a>
@@ -13,7 +16,7 @@
   </thead>
   <tbody>
     {% for item in items %}
-    <tr>
+    <tr{% if created and item.id == created.id %} class="new"{% endif %}>
       <td>{{ item.id }}</td>
       <td>{{ item.name }}</td>
       <td>{{ item.description or "" }}</td>
@@ -30,7 +33,7 @@
         <form method="post" action="{{ url_for('delete_item_page', item_id=item.id) }}"
               hx-post="{{ url_for('delete_item_page', item_id=item.id) }}"
               hx-confirm="Delete item #{{ item.id }} ({{ item.name }})?"
-              hx-target="closest tr" hx-swap="outerHTML">
+              hx-target="closest tr" hx-swap="outerHTML swap:400ms">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button type="submit" title="Delete item #{{ item.id }}">Delete</button>
         </form>

@@ -85,6 +85,20 @@ def test_layout_has_htmx_csrf_header_and_nav(user_client: TestClient) -> None:
     assert 'href="https://testserver/ui/items/new"' in page
 
 
+def test_custom_confirm_dialog(user_client: TestClient) -> None:
+    page = user_client.get("/ui/items").text
+    assert '<dialog id="confirm-dialog"' in page
+    assert "/ui/static/confirm-dialog.js" in page
+    js = user_client.get("/ui/static/confirm-dialog.js")
+    assert js.status_code == 200
+    assert "htmx:confirm" in js.text
+
+
+def test_delete_fades_out(user_client: TestClient) -> None:
+    create(user_client, "Teapot")
+    assert 'hx-swap="outerHTML swap:400ms"' in user_client.get("/ui/items").text
+
+
 def test_htmx_served(client: TestClient) -> None:
     r = client.get("/ui/static/htmx-2.0.4.min.js")
     assert r.status_code == 200

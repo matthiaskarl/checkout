@@ -6,6 +6,7 @@
   <title>{% block title %}checkout{% endblock %}</title>
   {# htmx, vendored (src/checkout/static). The version in the file name doubles as cache busting. #}
   <script src="{{ url_for('static', path='htmx-2.0.4.min.js') }}" defer></script>
+  <script src="{{ url_for('static', path='confirm-dialog.js') }}" defer></script>
   <style>
     body { font-family: system-ui, sans-serif; max-width: 48rem; margin: 2rem auto; padding: 0 1rem; color: #222; }
     label { display: block; margin-top: 1rem; font-weight: 600; }
@@ -19,8 +20,26 @@
     td.actions { white-space: nowrap; text-align: right; }
     td.actions form { display: inline; }
     td.actions button { margin: 0; padding: .15rem .6rem; }
-    /* htmx adds .htmx-request while a request runs: fade the row being deleted. */
-    tr.htmx-request { opacity: .4; transition: opacity .2s; }
+    tr.new { background: #f3fbf5; }
+
+    /* Fade-out on delete: hx-swap="outerHTML swap:400ms" makes htmx wait 400 ms before
+       replacing the row and adds .htmx-swapping meanwhile; the transition runs in that gap.
+       (.htmx-request, set during the request itself, is too short to see on localhost.) */
+    tr.htmx-swapping { opacity: 0; transition: opacity 400ms ease-out; }
+
+    /* The confirm dialog (native <dialog>, see confirm-dialog.js). */
+    dialog { border: none; border-radius: 10px; padding: 1.5rem 1.75rem; max-width: 22rem;
+             box-shadow: 0 12px 40px rgb(0 0 0 / .25); }
+    dialog::backdrop { background: rgb(20 20 30 / .35); backdrop-filter: blur(3px); }
+    dialog p { margin: 0 0 1.25rem; font-size: 1.05rem; }
+    dialog .dialog-buttons { display: flex; justify-content: flex-end; gap: .5rem; }
+    dialog button { margin: 0; border-radius: 6px; border: 1px solid #bbb; background: #fff; }
+    dialog button.danger { background: #c62828; border-color: #c62828; color: #fff; }
+    dialog button.danger:hover { background: #a31f1f; }
+    /* Open animation: @starting-style defines where the transition starts from. */
+    dialog[open] { opacity: 1; transform: none;
+                   transition: opacity .15s, transform .15s; }
+    @starting-style { dialog[open] { opacity: 0; transform: translateY(-8px) scale(.97); } }
     header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; font-size: .9rem; border-bottom: 1px solid #ddd; padding-bottom: .5rem; }
     header nav a { margin-right: 1rem; }
     .userbar { display: flex; align-items: center; gap: .75rem; }
@@ -53,5 +72,17 @@
     </div>
   </header>
   {% block content %}{% endblock %}
+
+  {# Shared confirmation dialog, filled and opened by confirm-dialog.js for any hx-confirm.
+     method="dialog": a button closes the dialog and sets dialog.returnValue to its value. #}
+  <dialog id="confirm-dialog" aria-labelledby="confirm-question">
+    <form method="dialog">
+      <p id="confirm-question" data-question></p>
+      <div class="dialog-buttons">
+        <button value="cancel" autofocus>Cancel</button>
+        <button value="confirm" class="danger">Delete</button>
+      </div>
+    </form>
+  </dialog>
 </body>
 </html>

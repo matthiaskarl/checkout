@@ -44,10 +44,17 @@ def items_page(
     request: Request,
     session: SessionDep,
     current_user: CurrentPageUser,
+    created: int | None = None,
     deleted: int | None = None,
 ) -> Response:
+    """?created=<id> / ?deleted=<id>: one-off notices after a redirect (Post/Redirect/Get)."""
     items = session.scalars(select(Item).order_by(Item.id.desc())).all()
-    context = {"items": items, "deleted": deleted, "current_user": current_user}
+    context = {
+        "items": items,
+        "created": session.get(Item, created) if created is not None else None,
+        "deleted": deleted,
+        "current_user": current_user,
+    }
     return templates.TemplateResponse(request, "items_list.html", context)
 
 
@@ -80,14 +87,12 @@ def _render_new_item(
     *,
     form: dict[str, str] | None = None,
     errors: dict[str, str] | None = None,
-    created: Item | None = None,
     status_code: int = status.HTTP_200_OK,
 ) -> Response:
     items = session.scalars(select(Item).order_by(Item.id.desc()).limit(10)).all()
     context: dict[str, Any] = {
         "form": form or {"name": "", "description": ""},
         "errors": errors or {},
-        "created": created,
         "items": items,
         "current_user": current_user,
     }
@@ -99,10 +104,8 @@ def new_item_page(
     request: Request,
     session: SessionDep,
     current_user: CurrentPageUser,
-    created: int | None = None,
 ) -> Response:
-    created_item = session.get(Item, created) if created is not None else None
-    return _render_new_item(request, session, current_user, created=created_item)
+    return _render_new_item(request, session, current_user)
 
 
 @router.post("/items/new", name="create_item_page")
@@ -132,5 +135,5 @@ def create_item_page(
     session.add(item)
     session.commit()
 
-    url = request.url_for("new_item_page").include_query_params(created=item.id)
+    url = request.url_for("items_page").include_query_params(created=item.id)
     return RedirectResponse(url, status_code=status.HTTP_303_SEE_OTHER)
