@@ -19,6 +19,8 @@
     th, td { text-align: left; padding: .4rem; border-bottom: 1px solid #ddd; vertical-align: top; }
     td.actions { white-space: nowrap; text-align: right; }
     td.actions form { display: inline; }
+    td.actions a { margin-right: .5rem; }
+    a.cancel { margin-left: 1rem; }
     td.actions button { margin: 0; padding: .15rem .6rem; }
     tr.new { background: #f3fbf5; }
 
@@ -26,6 +28,15 @@
        replacing the row and adds .htmx-swapping meanwhile; the transition runs in that gap.
        (.htmx-request, set during the request itself, is too short to see on localhost.) */
     tr.htmx-swapping { opacity: 0; transition: opacity 400ms ease-out; }
+
+    /* Dice section */
+    details.dice { margin: 1rem 0; padding: .5rem 1rem; border: 1px solid #ddd; border-radius: 6px; }
+    details.dice summary { cursor: pointer; font-weight: 600; }
+    .dice-selects { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+    .dice-selects select { width: 3.5rem; padding: .35rem; font: inherit; }
+    .dice-selects button { margin: 0; }
+    .hint { color: #666; font-size: .9rem; }
+    .probability { font-size: 1.25rem; font-weight: 600; }
 
     /* The confirm dialog (native <dialog>, see confirm-dialog.js). */
     dialog { border: none; border-radius: 10px; padding: 1.5rem 1.75rem; max-width: 22rem;

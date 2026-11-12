@@ -6,7 +6,7 @@ def test_form_renders(user_client: TestClient) -> None:
     assert r.status_code == 200
     assert "text/html" in r.headers["content-type"]
     assert '<form method="post"' in r.text
-    assert "No items yet." in r.text
+    assert "<h1>New item</h1>" in r.text
 
 
 def test_create_redirects_and_shows_item(user_client: TestClient) -> None:
@@ -35,6 +35,6 @@ def test_invalid_input_rerenders_with_error(user_client: TestClient) -> None:
 
 def test_html_is_escaped(user_client: TestClient) -> None:
     user_client.post("/ui/items/new", data={"name": "<script>alert(1)</script>"})
-    page = user_client.get("/ui/items/new")
+    page = user_client.get("/ui/items")
     assert "<script>alert(1)</script>" not in page.text
     assert "&lt;script&gt;" in page.text

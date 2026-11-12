@@ -110,3 +110,61 @@ def create_with_token(client: TestClient, csrf: str, name: str) -> int:
     assert r.status_code == 201
     item_id: int = r.json()["id"]
     return item_id
+
+
+# --- edit -------------------------------------------------------------------------------------
+
+
+def test_edit_form_prefilled(user_client: TestClient) -> None:
+    item_id = create(user_client, "Teapot")
+    page = user_client.get(f"/ui/items/{item_id}/edit").text
+    assert f"<h1>Edit item #{item_id}</h1>" in page
+    assert 'value="Teapot"' in page
+    assert ">about Teapot</textarea>" in page
+    assert f'action="https://testserver/ui/items/{item_id}/edit"' in page
+    assert ">Save</button>" in page
+
+
+def test_list_links_to_edit(user_client: TestClient) -> None:
+    item_id = create(user_client, "Teapot")
+    assert f'href="https://testserver/ui/items/{item_id}/edit"' in user_client.get("/ui/items").text
+
+
+def test_edit_saves_and_redirects(user_client: TestClient) -> None:
+    item_id = create(user_client, "Teapot")
+    r = user_client.post(
+        f"/ui/items/{item_id}/edit",
+        data={"name": " Kettle ", "description": ""},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    assert r.headers["location"].endswith(f"/ui/items?updated={item_id}")
+    page = user_client.get(r.headers["location"]).text
+    assert f"Saved item #{item_id}: <strong>Kettle</strong>" in page
+    assert '<tr class="new">' in page
+
+    item = user_client.get(f"/api/items/{item_id}").json()
+    assert item["name"] == "Kettle"  # stripped
+    assert item["description"] is None  # empty field clears it: full update
+
+
+def test_edit_invalid_keeps_input_and_item(user_client: TestClient) -> None:
+    item_id = create(user_client, "Teapot")
+    r = user_client.post(f"/ui/items/{item_id}/edit", data={"name": "  ", "description": "new"})
+    assert r.status_code == 422
+    assert 'class="error"' in r.text
+    assert ">new</textarea>" in r.text  # what the user typed, not the stored value
+    assert f"<h1>Edit item #{item_id}</h1>" in r.text  # still the edit form
+    assert user_client.get(f"/api/items/{item_id}").json()["name"] == "Teapot"
+
+
+def test_edit_missing_item(user_client: TestClient) -> None:
+    assert user_client.get("/ui/items/999/edit").status_code == 404
+    assert user_client.post("/ui/items/999/edit", data={"name": "x"}).status_code == 404
+
+
+def test_edit_needs_csrf(logged_in_client: TestClient) -> None:
+    csrf = csrf_token_from(logged_in_client.get("/ui/items").text)
+    item_id = create_with_token(logged_in_client, csrf, "Teapot")
+    r = logged_in_client.post(f"/ui/items/{item_id}/edit", data={"name": "Hacked"})
+    assert r.status_code == 403

@@ -3,6 +3,7 @@
   /ui/                     -> redirect to the list
   /ui/items                list of all items, delete per row
   /ui/items/new            create form (GET shows it, POST saves)
+  /ui/items/{id}/edit      edit form, same template (POST, since HTML forms can't PATCH)
   /ui/items/{id}/delete    POST only: deleting must never be a GET (links, prefetching)
 
 Pattern: GET renders the form; POST validates and either re-renders the form with
@@ -20,6 +21,7 @@ from sqlalchemy import select
 from checkout.auth import CurrentPageUser, require_csrf, require_page_user
 from checkout.db import SessionDep
 from checkout.models import Item, User
+from checkout.routers.dice_ui import SymbolParams, dice_context
 from checkout.schemas import ItemCreate
 from checkout.templating import templates
 
@@ -45,14 +47,19 @@ def items_page(
     session: SessionDep,
     current_user: CurrentPageUser,
     created: int | None = None,
+    updated: int | None = None,
     deleted: int | None = None,
+    symbols: SymbolParams = None,
 ) -> Response:
-    """?created=<id> / ?deleted=<id>: one-off notices after a redirect (Post/Redirect/Get)."""
+    """?created= / ?updated= / ?deleted=<id>: one-off notices after a redirect (PRG).
+    ?symbol=...: the dice form submitted without JavaScript (see _dice.html)."""
     items = session.scalars(select(Item).order_by(Item.id.desc())).all()
     context = {
         "items": items,
         "created": session.get(Item, created) if created is not None else None,
+        "updated": session.get(Item, updated) if updated is not None else None,
         "deleted": deleted,
+        "dice": dice_context(symbols),
         "current_user": current_user,
     }
     return templates.TemplateResponse(request, "items_list.html", context)
@@ -66,9 +73,7 @@ def delete_item_page(
     hx_request: Annotated[str | None, Header()] = None,
 ) -> Response:
     """One route for both kinds of caller, told apart by htmx's `HX-Request: true` header."""
-    item = session.get(Item, item_id)
-    if item is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Item not found")
+    item = _get_item_or_404(session, item_id)
     session.delete(item)
     session.commit()
 
@@ -80,32 +85,51 @@ def delete_item_page(
     return RedirectResponse(url, status.HTTP_303_SEE_OTHER)
 
 
-def _render_new_item(
+def _render_form(
     request: Request,
-    session: SessionDep,
     current_user: User,
     *,
-    form: dict[str, str] | None = None,
+    item: Item | None,
+    form: dict[str, str],
     errors: dict[str, str] | None = None,
     status_code: int = status.HTTP_200_OK,
 ) -> Response:
-    items = session.scalars(select(Item).order_by(Item.id.desc()).limit(10)).all()
+    """The shared form page: item=None for "new", the Item for "edit"."""
     context: dict[str, Any] = {
-        "form": form or {"name": "", "description": ""},
+        "item": item,
+        "form": form,
         "errors": errors or {},
-        "items": items,
         "current_user": current_user,
     }
-    return templates.TemplateResponse(request, "items_new.html", context, status_code=status_code)
+    return templates.TemplateResponse(request, "item_form.html", context, status_code=status_code)
+
+
+def _validate(name: str, description: str) -> ItemCreate | dict[str, str]:
+    """Form values -> validated data, or {field: message}.
+
+    Same Pydantic schema as the JSON API -> identical rules. Also used for editing: the
+    form always sends both fields, so an edit is a full update (unlike the API's PATCH,
+    where clients may send only the fields they change).
+    """
+    try:
+        return ItemCreate(name=name.strip(), description=description.strip() or None)
+    except ValidationError as exc:
+        return {str(err["loc"][0]): err["msg"] for err in exc.errors()}
+
+
+def _get_item_or_404(session: SessionDep, item_id: int) -> Item:
+    item = session.get(Item, item_id)
+    if item is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Item not found")
+    return item
+
+
+# --- create ---------------------------------------------------------------------------------
 
 
 @router.get("/items/new", name="new_item_page")
-def new_item_page(
-    request: Request,
-    session: SessionDep,
-    current_user: CurrentPageUser,
-) -> Response:
-    return _render_new_item(request, session, current_user)
+def new_item_page(request: Request, current_user: CurrentPageUser) -> Response:
+    return _render_form(request, current_user, item=None, form={"name": "", "description": ""})
 
 
 @router.post("/items/new", name="create_item_page")
@@ -116,24 +140,61 @@ def create_item_page(
     name: Annotated[str, Form()] = "",
     description: Annotated[str, Form()] = "",
 ) -> Response:
-    form = {"name": name, "description": description}
-    try:
-        # Same Pydantic schema as the JSON API -> identical validation rules.
-        data = ItemCreate(name=name.strip(), description=description.strip() or None)
-    except ValidationError as exc:
-        errors = {str(err["loc"][0]): err["msg"] for err in exc.errors()}
-        return _render_new_item(
+    result = _validate(name, description)
+    if isinstance(result, dict):
+        return _render_form(
             request,
-            session,
             current_user,
-            form=form,
-            errors=errors,
+            item=None,
+            form={"name": name, "description": description},
+            errors=result,
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         )
 
-    item = Item(**data.model_dump())
+    item = Item(**result.model_dump())
     session.add(item)
     session.commit()
 
     url = request.url_for("items_page").include_query_params(created=item.id)
+    return RedirectResponse(url, status_code=status.HTTP_303_SEE_OTHER)
+
+
+# --- edit -----------------------------------------------------------------------------------
+
+
+@router.get("/items/{item_id}/edit", name="edit_item_page")
+def edit_item_page(
+    request: Request, session: SessionDep, current_user: CurrentPageUser, item_id: int
+) -> Response:
+    item = _get_item_or_404(session, item_id)
+    form = {"name": item.name, "description": item.description or ""}
+    return _render_form(request, current_user, item=item, form=form)
+
+
+@router.post("/items/{item_id}/edit", name="update_item_page")
+def update_item_page(
+    request: Request,
+    session: SessionDep,
+    current_user: CurrentPageUser,
+    item_id: int,
+    name: Annotated[str, Form()] = "",
+    description: Annotated[str, Form()] = "",
+) -> Response:
+    item = _get_item_or_404(session, item_id)
+    result = _validate(name, description)
+    if isinstance(result, dict):
+        return _render_form(
+            request,
+            current_user,
+            item=item,
+            form={"name": name, "description": description},
+            errors=result,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        )
+
+    item.name = result.name
+    item.description = result.description
+    session.commit()
+
+    url = request.url_for("items_page").include_query_params(updated=item.id)
     return RedirectResponse(url, status_code=status.HTTP_303_SEE_OTHER)
