@@ -4,33 +4,109 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}checkout{% endblock %}</title>
+  {# htmx, vendored (src/checkout/static). The version in the file name doubles as cache busting. #}
+  {#
+    htmx swaps only 2xx responses by default. Also swap 422, so a failed inline edit can
+    send back the edit row with its error messages while keeping the honest status code.
+    (The rest is htmx's default: 204 = no swap, other 4xx/5xx = error, no swap.)
+  #}
+  <meta name="htmx-config" content='{"responseHandling": [
+    {"code": "204", "swap": false},
+    {"code": "[23]..", "swap": true},
+    {"code": "422", "swap": true},
+    {"code": "[45]..", "swap": false, "error": true}]}'>
+  <script src="{{ url_for('static', path='htmx-2.0.4.min.js') }}" defer></script>
+  <script src="{{ url_for('static', path='confirm-dialog.js') }}" defer></script>
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; color: #222; }
+    body { font-family: system-ui, sans-serif; max-width: 48rem; margin: 2rem auto; padding: 0 1rem; color: #222; }
     label { display: block; margin-top: 1rem; font-weight: 600; }
     input, textarea { width: 100%; padding: .5rem; font: inherit; box-sizing: border-box; }
-    button { margin-top: 1rem; padding: .5rem 1.25rem; font: inherit; cursor: pointer; }
+    button, .button { margin-top: 1rem; padding: .5rem 1.25rem; font: inherit; cursor: pointer; }
+    .button { display: inline-block; border: 1px solid #888; border-radius: 3px; background: #f0f0f0; color: inherit; text-decoration: none; }
     .error { color: #b00020; font-size: .9rem; }
     .notice { background: #e6f4ea; border: 1px solid #a8d5b5; padding: .5rem 1rem; border-radius: 4px; }
     table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
-    th, td { text-align: left; padding: .4rem; border-bottom: 1px solid #ddd; }
-    .userbar { display: flex; justify-content: flex-end; align-items: center; gap: .75rem; font-size: .9rem; }
+    th, td { text-align: left; padding: .4rem; border-bottom: 1px solid #ddd; vertical-align: top; }
+    td.actions { white-space: nowrap; text-align: right; }
+    td.actions form { display: inline; }
+    td.actions a { margin-right: .5rem; }
+    a.cancel { margin-left: 1rem; }
+    td.actions button { margin: 0; padding: .15rem .6rem; }
+    tr.new { background: #f3fbf5; }
+    tr.editing { background: #fffbe6; }
+    tr.editing input { padding: .25rem .4rem; }
+    tr.editing .error { margin: .25rem 0 0; }
+
+    /* Fade-out on delete: hx-swap="outerHTML swap:400ms" makes htmx wait 400 ms before
+       replacing the row and adds .htmx-swapping meanwhile; the transition runs in that gap.
+       (.htmx-request, set during the request itself, is too short to see on localhost.) */
+    tr.htmx-swapping { opacity: 0; transition: opacity 400ms ease-out; }
+
+    /* Dice section */
+    details.dice { margin: 1rem 0; padding: .5rem 1rem; border: 1px solid #ddd; border-radius: 6px; }
+    details.dice summary { cursor: pointer; font-weight: 600; }
+    .dice-selects { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+    .dice-selects select { width: 3.5rem; padding: .35rem; font: inherit; }
+    .dice-selects button { margin: 0; }
+    .hint { color: #666; font-size: .9rem; }
+    .probability { font-size: 1.25rem; font-weight: 600; }
+
+    /* The confirm dialog (native <dialog>, see confirm-dialog.js). */
+    dialog { border: none; border-radius: 10px; padding: 1.5rem 1.75rem; max-width: 22rem;
+             box-shadow: 0 12px 40px rgb(0 0 0 / .25); }
+    dialog::backdrop { background: rgb(20 20 30 / .35); backdrop-filter: blur(3px); }
+    dialog p { margin: 0 0 1.25rem; font-size: 1.05rem; }
+    dialog .dialog-buttons { display: flex; justify-content: flex-end; gap: .5rem; }
+    dialog button { margin: 0; border-radius: 6px; border: 1px solid #bbb; background: #fff; }
+    dialog button.danger { background: #c62828; border-color: #c62828; color: #fff; }
+    dialog button.danger:hover { background: #a31f1f; }
+    /* Open animation: @starting-style defines where the transition starts from. */
+    dialog[open] { opacity: 1; transform: none;
+                   transition: opacity .15s, transform .15s; }
+    @starting-style { dialog[open] { opacity: 0; transform: translateY(-8px) scale(.97); } }
+    header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; font-size: .9rem; border-bottom: 1px solid #ddd; padding-bottom: .5rem; }
+    header nav a { margin-right: 1rem; }
+    .userbar { display: flex; align-items: center; gap: .75rem; }
     .userbar form, .userbar button { margin: 0; }
     .userbar button { padding: .2rem .75rem; }
   </style>
 </head>
-<body>
-  <nav class="userbar">
-    {% if current_user %}
-      <span>Logged in as <strong>{{ current_user.username }}</strong></span>
-      {# Logout is a POST, not a link: a GET could be triggered by any <img> on another site. #}
-      <form method="post" action="{{ url_for('logout') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <button type="submit">Log out</button>
-      </form>
-    {% elif request.url.path != url_for('login_page').path %}
-      <a href="{{ url_for('login_page') }}">Log in</a>
-    {% endif %}
-  </nav>
+{# hx-headers is inherited by every htmx request on the page: the CSRF token travels along
+   automatically, like the hidden field does for plain forms. tojson makes it valid,
+   HTML-safe JSON. #}
+<body{% if csrf_token %} hx-headers='{{ {"X-CSRF-Token": csrf_token} | tojson }}'{% endif %}>
+  <header>
+    <nav>
+      {% if current_user %}
+        <a href="{{ url_for('items_page') }}">Items</a>
+        <a href="{{ url_for('new_item_page') }}">New item</a>
+      {% endif %}
+    </nav>
+    <div class="userbar">
+      {% if current_user %}
+        <span>Logged in as <strong>{{ current_user.username }}</strong></span>
+        {# Logout is a POST, not a link: a GET could be triggered by any <img> on another site. #}
+        <form method="post" action="{{ url_for('logout') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit">Log out</button>
+        </form>
+      {% elif request.url.path != url_for('login_page').path %}
+        <a href="{{ url_for('login_page') }}">Log in</a>
+      {% endif %}
+    </div>
+  </header>
   {% block content %}{% endblock %}
+
+  {# Shared confirmation dialog, filled and opened by confirm-dialog.js for any hx-confirm.
+     method="dialog": a button closes the dialog and sets dialog.returnValue to its value. #}
+  <dialog id="confirm-dialog" aria-labelledby="confirm-question">
+    <form method="dialog">
+      <p id="confirm-question" data-question></p>
+      <div class="dialog-buttons">
+        <button value="cancel" autofocus>Cancel</button>
+        <button value="confirm" class="danger">Delete</button>
+      </div>
+    </form>
+  </dialog>
 </body>
 </html>

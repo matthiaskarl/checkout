@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Items · checkout{% endblock %}
+{% block content %}
+<h1>Items</h1>
+
+{% if created %}
+  <p class="notice">Created item #{{ created.id }}: <strong>{{ created.name }}</strong></p>
+{% endif %}
+{% if updated %}
+  <p class="notice">Saved item #{{ updated.id }}: <strong>{{ updated.name }}</strong></p>
+{% endif %}
+{% if deleted %}<p class="notice">Deleted item #{{ deleted }}.</p>{% endif %}
+
+{% include "_dice.html" %}
+
+<a class="button" href="{{ url_for('new_item_page') }}">+ New item</a>
+
+<table>
+  <thead>
+    <tr><th>#</th><th>Name</th><th>Description</th><th>Created</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for item in items %}
+      {% set highlight = (created and item.id == created.id) or (updated and item.id == updated.id) %}
+      {% include "_item_row.html" %}
+    {% else %}
+    <tr><td colspan="5">No items yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

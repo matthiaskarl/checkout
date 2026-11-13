@@ -1,0 +1,31 @@
+{#
+  Dice section, included into the list page: {% include "_dice.html" %}.
+  Needs `dice` from routers/dice_ui.py:dice_context().
+
+  - <details>/<summary>: collapsible without any JavaScript.
+  - With htmx: hx-get sends the form fields as query parameters to /ui/dice and puts the
+    returned fragment into #dice-result (hx-target). The rest of the page stays as it is,
+    including the selects.
+  - Without JavaScript: the same form does a normal GET to the list page, which renders
+    the whole page with the result (and this section open).
+#}
+<details class="dice"{% if dice.submitted %} open{% endif %}>
+  <summary>Dice probability</summary>
+  <form method="get" action="{{ url_for('items_page') }}"
+        hx-get="{{ url_for('dice_result') }}" hx-target="#dice-result">
+    <p class="hint">Roll 5 dice up to 3 times and keep what you need. How likely is it to get…</p>
+    <div class="dice-selects">
+      {% for value in dice.selected %}
+        <select name="symbol" aria-label="Die {{ loop.index }}">
+          <option value=""{% if not value %} selected{% endif %}>–</option>
+          {% for face in dice.faces %}
+            <option value="{{ face }}"{% if value == face %} selected{% endif %}>{{ face }}</option>
+          {% endfor %}
+        </select>
+      {% endfor %}
+      <button type="submit">Calculate</button>
+    </div>
+  </form>
+  {# aria-live: screen readers announce the new result when htmx replaces the content. #}
+  <div id="dice-result" aria-live="polite">{% include "_dice_result.html" %}</div>
+</details>

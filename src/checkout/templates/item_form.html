@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{#
+  One form for both "new" and "edit". `item` is None when creating, the Item when editing;
+  `form` holds the field values to show (empty, the item's values, or what the user just
+  submitted when validation failed).
+#}
+{% set heading = "Edit item #%d"|format(item.id) if item else "New item" %}
+{% block title %}{{ heading }} · checkout{% endblock %}
+{% block content %}
+<h1>{{ heading }}</h1>
+
+<form method="post"
+      action="{{ url_for('update_item_page', item_id=item.id) if item else url_for('create_item_page') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <label for="name">Name</label>
+  <input id="name" name="name" value="{{ form.name }}" maxlength="100" required autofocus>
+  {% if errors.name %}<p class="error">{{ errors.name }}</p>{% endif %}
+
+  <label for="description">Description</label>
+  <textarea id="description" name="description" rows="3" maxlength="500">{{ form.description }}</textarea>
+  {% if errors.description %}<p class="error">{{ errors.description }}</p>{% endif %}
+
+  <button type="submit">{{ "Save" if item else "Create" }}</button>
+  <a class="cancel" href="{{ url_for('items_page') }}">Cancel</a>
+</form>
+{% endblock %}

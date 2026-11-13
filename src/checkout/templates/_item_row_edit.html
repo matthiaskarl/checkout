@@ -1,0 +1,37 @@
+{#
+  One item as an edit row (inline editing). Needs `item`, `form` (values to show) and
+  `errors`.
+
+  A <form> can't wrap a <tr> (invalid HTML), so the form sits empty in the last cell and
+  the inputs join it via their form="..." attribute. That keeps native behaviour: Enter in
+  a field submits. htmx collects all of form.elements, including those inputs, and sends
+  them as PUT; the response (display row, or this row again with errors) replaces the row.
+  Escape anywhere in the row cancels (hx-trigger with a key filter on the <tr>).
+#}
+{% set form_id = "edit-item-%d"|format(item.id) %}
+<tr id="item-{{ item.id }}" class="editing"
+    hx-get="{{ url_for('item_row', item_id=item.id) }}"
+    hx-trigger="keyup[key=='Escape']" hx-target="this" hx-swap="outerHTML">
+  <td>{{ item.id }}</td>
+  <td>
+    <input form="{{ form_id }}" name="name" value="{{ form.name }}" maxlength="100"
+           aria-label="Name" required autofocus>
+    {% if errors.name %}<p class="error">{{ errors.name }}</p>{% endif %}
+  </td>
+  <td>
+    <input form="{{ form_id }}" name="description" value="{{ form.description }}"
+           maxlength="500" aria-label="Description">
+    {% if errors.description %}<p class="error">{{ errors.description }}</p>{% endif %}
+  </td>
+  <td>{{ item.created_at.strftime("%Y-%m-%d %H:%M") }}</td>
+  <td class="actions">
+    <form id="{{ form_id }}"
+          hx-put="{{ url_for('update_item_row', item_id=item.id) }}"
+          hx-target="closest tr" hx-swap="outerHTML">
+      <button type="submit">Save</button>
+      <button type="button"
+              hx-get="{{ url_for('item_row', item_id=item.id) }}"
+              hx-target="closest tr" hx-swap="outerHTML">Cancel</button>
+    </form>
+  </td>
+</tr>

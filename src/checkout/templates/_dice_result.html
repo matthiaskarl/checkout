@@ -1,0 +1,12 @@
+{# The fragment htmx swaps in (GET /ui/dice). Also included by _dice.html for the no-JS page. #}
+{% if dice.error %}
+  <p class="error">{{ dice.error }}</p>
+{% elif dice.probability is not none %}
+  <p class="dice-result">
+    <strong>{{ dice.goal }}</strong>:
+    <span class="probability">{{ "%.2f"|format(dice.probability * 100) }} %</span>
+    {% if dice.probability > 0 %}
+      <span class="hint">(about 1 in {{ "%.1f"|format(1 / dice.probability) }} attempts)</span>
+    {% endif %}
+  </p>
+{% endif %}
