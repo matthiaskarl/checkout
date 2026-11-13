@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
 import { deleteItem, isAbort, listItems, NotLoggedIn, type Item } from './api'
 import ConfirmDialog from './ConfirmDialog'
+import DiceSection from './DiceSection'
+import ItemRow from './ItemRow'
 
 /** Passed by ItemFormPage via navigate(..., { state }) after saving. */
 export interface Notice {
@@ -22,6 +24,10 @@ export default function ItemsListPage() {
   const [error, setError] = useState<string | null>(null)
   const [toDelete, setToDelete] = useState<Item | null>(null)
   const [removing, setRemoving] = useState<number | null>(null)
+  // Rows to highlight: the one from the notice, plus every row saved inline since.
+  const [highlighted, setHighlighted] = useState<Set<number>>(
+    () => new Set(notice?.itemId === undefined ? [] : [notice.itemId]),
+  )
 
   useEffect(() => {
     // The browser keeps history state across reloads; clear it so a reload doesn't
@@ -59,11 +65,18 @@ export default function ItemsListPage() {
     }, FADE_MS)
   }
 
+  function handleSaved(saved: Item) {
+    setItems((prev) => prev.map((i) => (i.id === saved.id ? saved : i)))
+    setHighlighted((prev) => new Set(prev).add(saved.id))
+  }
+
   return (
     <>
       <h1>Items</h1>
       {notice && <p className="notice">{notice.text}</p>}
       {error && <p className="error">{error}</p>}
+
+      <DiceSection />
 
       <Link className="button" to="/items/new">
         + New item
@@ -90,23 +103,14 @@ export default function ItemsListPage() {
             </tr>
           ) : (
             items.map((item) => (
-              <tr
+              <ItemRow
                 key={item.id}
-                className={
-                  item.id === removing ? 'removing' : item.id === notice?.itemId ? 'new' : undefined
-                }
-              >
-                <td>{item.id}</td>
-                <td>{item.name}</td>
-                <td>{item.description ?? ''}</td>
-                <td>{item.created_at.replace('T', ' ').slice(0, 16)}</td>
-                <td className="actions">
-                  <Link to={`/items/${item.id}/edit`}>Edit</Link>
-                  <button type="button" onClick={() => setToDelete(item)}>
-                    Delete
-                  </button>
-                </td>
-              </tr>
+                item={item}
+                highlight={highlighted.has(item.id)}
+                removing={item.id === removing}
+                onDelete={setToDelete}
+                onSaved={handleSaved}
+              />
             ))
           )}
         </tbody>
