@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ItemBase(BaseModel):
@@ -15,8 +15,19 @@ class ItemCreate(ItemBase):
 
 
 class ItemUpdate(BaseModel):
+    # Both optional (PATCH: send only what changes), so the defaults are None. But only
+    # `description` may be set to null; the `name` column is NOT NULL.
     name: str | None = Field(default=None, min_length=1, max_length=100)
     description: str | None = Field(default=None, max_length=500)
+
+    @field_validator("name")
+    @classmethod
+    def name_not_null(cls, value: str | None) -> str:
+        # Validators don't run for defaults, only for values the client actually sent,
+        # so this rejects an explicit {"name": null} but still allows leaving name out.
+        if value is None:
+            raise ValueError("name cannot be null")
+        return value
 
 
 class ItemRead(ItemBase):
