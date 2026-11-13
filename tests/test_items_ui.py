@@ -178,6 +178,8 @@ def test_edit_link_is_inline_with_page_fallback(user_client: TestClient) -> None
     page = user_client.get("/ui/items").text
     assert f'href="https://testserver/ui/items/{item_id}/edit"' in page  # without JS
     assert f'hx-get="https://testserver/ui/items/{item_id}/row/edit"' in page  # with htmx
+    assert 'hx-trigger="click[!ctrlKey &amp;&amp; !metaKey &amp;&amp; !shiftKey]"' not in page
+    assert 'hx-trigger="click[!ctrlKey && !metaKey && !shiftKey]"' in page  # modifier clicks
 
 
 def test_edit_row_fragment(user_client: TestClient) -> None:

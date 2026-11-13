@@ -12,9 +12,12 @@
     {#
       Progressive enhancement again: with htmx, hx-get loads the edit row and swaps it in
       place of this row; without JavaScript, the href opens the separate edit page.
+      hx-trigger's filter leaves Ctrl/Cmd/Shift-clicks to the browser (new tab/window with
+      the edit page), like middle-clicks, which are "auxclick" events htmx never sees.
     #}
     <a href="{{ url_for('edit_item_page', item_id=item.id) }}"
        hx-get="{{ url_for('item_row_edit', item_id=item.id) }}"
+       hx-trigger="click[!ctrlKey && !metaKey && !shiftKey]"
        hx-target="closest tr" hx-swap="outerHTML">Edit</a>
     {#
       One form, two ways to submit it:
