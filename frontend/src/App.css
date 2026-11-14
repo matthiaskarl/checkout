@@ -1,11 +1,54 @@
-/* Same look as the Jinja2 version (templates/base.html) for a fair comparison. */
-body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; color: #222; }
+/* Copied from the Jinja2 version (templates/base.html) for a fair comparison;
+   differences are marked. */
+body { font-family: system-ui, sans-serif; max-width: 48rem; margin: 2rem auto; padding: 0 1rem; color: #222; }
 label { display: block; margin-top: 1rem; font-weight: 600; }
 input, textarea { width: 100%; padding: .5rem; font: inherit; box-sizing: border-box; }
-button { margin-top: 1rem; padding: .5rem 1.25rem; font: inherit; cursor: pointer; }
+button, .button { margin-top: 1rem; padding: .5rem 1.25rem; font: inherit; cursor: pointer; }
+.button { display: inline-block; border: 1px solid #888; border-radius: 3px; background: #f0f0f0; color: inherit; text-decoration: none; }
 .error { color: #b00020; font-size: .9rem; }
 .notice { background: #e6f4ea; border: 1px solid #a8d5b5; padding: .5rem 1rem; border-radius: 4px; }
 table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
-th, td { text-align: left; padding: .4rem; border-bottom: 1px solid #ddd; }
-.userbar { display: flex; justify-content: flex-end; align-items: center; gap: .75rem; font-size: .9rem; }
-.userbar button { margin: 0; padding: .2rem .75rem; }
+th, td { text-align: left; padding: .4rem; border-bottom: 1px solid #ddd; vertical-align: top; }
+td.actions { white-space: nowrap; text-align: right; }
+td.actions form { display: inline; }
+td.actions a { margin-right: .5rem; }
+a.cancel { margin-left: 1rem; }
+td.actions button { margin: 0; padding: .15rem .6rem; }
+tr.new { background: #f3fbf5; }
+tr.editing { background: #fffbe6; }
+tr.editing input { padding: .25rem .4rem; }
+tr.editing .error { margin: .25rem 0 0; }
+
+/* Fade-out on delete: React sets .removing, waits FADE_MS (ItemsListPage.tsx), then
+   removes the row from its state. Same effect as htmx's swap delay + .htmx-swapping. */
+tr.removing { opacity: 0; transition: opacity 400ms ease-out; }
+
+/* Dice section */
+details.dice { margin: 1rem 0; padding: .5rem 1rem; border: 1px solid #ddd; border-radius: 6px; }
+details.dice summary { cursor: pointer; font-weight: 600; }
+.dice-selects { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.dice-selects select { width: 3.5rem; padding: .35rem; font: inherit; }
+.dice-selects button { margin: 0; }
+.hint { color: #666; font-size: .9rem; }
+.probability { font-size: 1.25rem; font-weight: 600; }
+
+/* The confirm dialog (native <dialog>, see ConfirmDialog.tsx). */
+dialog { border: none; border-radius: 10px; padding: 1.5rem 1.75rem; max-width: 22rem;
+         box-shadow: 0 12px 40px rgb(0 0 0 / .25); }
+dialog::backdrop { background: rgb(20 20 30 / .35); backdrop-filter: blur(3px); }
+dialog p { margin: 0 0 1.25rem; font-size: 1.05rem; }
+dialog .dialog-buttons { display: flex; justify-content: flex-end; gap: .5rem; }
+dialog button { margin: 0; border-radius: 6px; border: 1px solid #bbb; background: #fff; }
+dialog button.danger { background: #c62828; border-color: #c62828; color: #fff; }
+dialog button.danger:hover { background: #a31f1f; }
+/* Open animation: @starting-style defines where the transition starts from. */
+dialog[open] { opacity: 1; transform: none;
+               transition: opacity .15s, transform .15s; }
+@starting-style { dialog[open] { opacity: 0; transform: translateY(-8px) scale(.97); } }
+header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; font-size: .9rem; border-bottom: 1px solid #ddd; padding-bottom: .5rem; }
+header nav a { margin-right: 1rem; }
+.userbar { display: flex; align-items: center; gap: .75rem; }
+.userbar form, .userbar button { margin: 0; }
+.userbar button { padding: .2rem .75rem; }
+td.actions button { margin-left: .25rem; }
+header nav a.active { font-weight: 600; text-decoration: none; }

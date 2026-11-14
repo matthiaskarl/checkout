@@ -16,6 +16,15 @@ export interface ItemCreate {
   description: string | null
 }
 
+/** PATCH body: only the fields that should change. */
+export type ItemUpdate = Partial<ItemCreate>
+
+export interface DiceResult {
+  goal: string[]
+  method: string
+  probability: number
+}
+
 export interface SessionInfo {
   username: string
   csrf_token: string
@@ -40,6 +49,8 @@ export class NotLoggedIn extends Error {
   }
 }
 
+export class NotFound extends Error {}
+
 // FastAPI's validation error format: {"detail": [{"loc": ["body", "name"], "msg": "..."}]}
 interface FastApiValidationError {
   detail: { loc: (string | number)[]; msg: string }[]
@@ -50,6 +61,14 @@ const API = '/api'
 // Module-level, set by getSession()/login(). Not in localStorage: it's only valid as long
 // as the session cookie is, and the next page load fetches it again anyway.
 let csrfToken: string | null = null
+
+// Called on every 401, before the NotLoggedIn error is thrown. App registers it once to
+// show the login form, so components don't each need an "onLoggedOut" prop.
+let onNotLoggedIn: () => void = () => {}
+
+export function setNotLoggedInHandler(handler: () => void): void {
+  onNotLoggedIn = handler
+}
 
 /** Every request goes through here: adds the CSRF header to writes, maps 401. */
 async function request(path: string, init: RequestInit = {}): Promise<Response> {
@@ -62,6 +81,8 @@ async function request(path: string, init: RequestInit = {}): Promise<Response> 
   const res = await fetch(`${API}${path}`, { ...init, headers })
   if (res.status === 401) {
     const body = (await res.json().catch(() => ({}))) as { detail?: string }
+    // Not for /session itself: there a 401 is an expected answer (login form / "who am I?").
+    if (!path.startsWith('/session')) onNotLoggedIn()
     throw new NotLoggedIn(body.detail)
   }
   return res
@@ -124,8 +145,33 @@ export async function listItems(signal?: AbortSignal): Promise<Item[]> {
   return res.json()
 }
 
+/** Throws NotFound for an unknown id. */
+export async function getItem(id: number, signal?: AbortSignal): Promise<Item> {
+  const res = await request(`/items/${id}`, { signal })
+  if (res.status === 404) throw new NotFound(`Item #${id} not found`)
+  if (!res.ok) throw new Error(`Loading item failed (HTTP ${res.status})`)
+  return res.json()
+}
+
 export async function createItem(data: ItemCreate): Promise<Item> {
   const res = await request('/items', { method: 'POST', body: JSON.stringify(data) })
+  return itemOrValidationError(res, 'Saving')
+}
+
+export async function updateItem(id: number, data: ItemUpdate): Promise<Item> {
+  const res = await request(`/items/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+  if (res.status === 404) throw new NotFound(`Item #${id} not found`)
+  return itemOrValidationError(res, 'Saving')
+}
+
+export async function deleteItem(id: number): Promise<void> {
+  const res = await request(`/items/${id}`, { method: 'DELETE' })
+  // 404: already gone (e.g. deleted in another tab) - the goal is reached either way.
+  if (!res.ok && res.status !== 404) throw new Error(`Deleting failed (HTTP ${res.status})`)
+}
+
+/** Shared by create/update: 422 -> ValidationFailed with per-field messages. */
+async function itemOrValidationError(res: Response, action: string): Promise<Item> {
   if (res.status === 422) {
     const body = (await res.json()) as FastApiValidationError
     const errors: FieldErrors = {}
@@ -135,6 +181,20 @@ export async function createItem(data: ItemCreate): Promise<Item> {
     }
     throw new ValidationFailed(errors)
   }
-  if (!res.ok) throw new Error(`Saving failed (HTTP ${res.status})`)
+  if (!res.ok) throw new Error(`${action} failed (HTTP ${res.status})`)
+  return res.json()
+}
+
+// --- dicesim -----------------------------------------------------------------------------
+
+/** Exact probability via the public JSON API (uses our session, no API key needed). */
+export async function getDiceProbability(goal: string[], signal?: AbortSignal): Promise<DiceResult> {
+  const params = new URLSearchParams({ goal: goal.join(''), method: 'exact' })
+  const res = await request(`/dicesim?${params}`, { signal })
+  if (res.status === 422) {
+    const body = (await res.json()) as FastApiValidationError
+    throw new Error(body.detail[0]?.msg ?? 'Invalid goal')
+  }
+  if (!res.ok) throw new Error(`Calculation failed (HTTP ${res.status})`)
   return res.json()
 }

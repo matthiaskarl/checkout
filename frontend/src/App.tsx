@@ -1,18 +1,23 @@
-import { useCallback, useEffect, useState } from 'react'
-import { getSession, isAbort, logout, type SessionInfo } from './api'
-import ItemsPage from './ItemsPage'
+import { useEffect, useState } from 'react'
+import { Navigate, NavLink, Route, Routes } from 'react-router'
+import { getSession, isAbort, logout, setNotLoggedInHandler, type SessionInfo } from './api'
+import ItemFormPage from './ItemFormPage'
+import ItemsListPage from './ItemsListPage'
 import LoginForm from './LoginForm'
 import './App.css'
 
 /**
- * The login "gate": asks the server once who is logged in, then shows either the login
- * form or the app. undefined = still asking, null = not logged in.
+ * The login "gate" plus the page layout. Asks the server once who is logged in, then shows
+ * the login form or the routed pages. undefined = still asking, null = not logged in.
+ * The URL stays as it is while logged out, so after login you land on the page you wanted.
  */
 export default function App() {
   const [session, setSession] = useState<SessionInfo | null | undefined>(undefined)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    // Any 401 anywhere (session expired, logged out in another tab) -> back to the login form.
+    setNotLoggedInHandler(() => setSession(null))
     const controller = new AbortController()
     getSession(controller.signal)
       .then(setSession)
@@ -23,9 +28,6 @@ export default function App() {
     // StrictMode mounts twice, so the first request shows up as "(canceled)".
     return () => controller.abort()
   }, [])
-
-  // useCallback: a stable function identity, so ItemsPage's effect doesn't re-run each render.
-  const handleLoggedOut = useCallback(() => setSession(null), [])
 
   async function handleLogout() {
     await logout()
@@ -38,15 +40,32 @@ export default function App() {
 
   return (
     <>
-      <nav className="userbar">
-        <span>
-          Logged in as <strong>{session.username}</strong>
-        </span>
-        <button type="button" onClick={handleLogout}>
-          Log out
-        </button>
-      </nav>
-      <ItemsPage onLoggedOut={handleLoggedOut} />
+      <header>
+        <nav>
+          {/* NavLink adds class="active" to the link of the current page. */}
+          <NavLink to="/items" end>
+            Items
+          </NavLink>
+          <NavLink to="/items/new">New item</NavLink>
+        </nav>
+        <div className="userbar">
+          <span>
+            Logged in as <strong>{session.username}</strong>
+          </span>
+          <button type="button" onClick={handleLogout}>
+            Log out
+          </button>
+        </div>
+      </header>
+
+      {/* Same URLs as the Jinja2 UI, under /app instead of /ui. */}
+      <Routes>
+        <Route path="/" element={<Navigate to="/items" replace />} />
+        <Route path="/items" element={<ItemsListPage />} />
+        <Route path="/items/new" element={<ItemFormPage />} />
+        <Route path="/items/:id/edit" element={<ItemFormPage />} />
+        <Route path="*" element={<p className="error">Page not found.</p>} />
+      </Routes>
     </>
   )
 }

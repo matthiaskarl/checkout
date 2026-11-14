@@ -35,3 +35,16 @@ def test_url_layout(client: TestClient) -> None:
     assert client.get("/items").status_code == 404
     assert client.get("/health").status_code == 404
     assert client.get("/docs").status_code == 404
+
+
+def test_patch_rejects_null_name(user_client: TestClient) -> None:
+    """Regression: {"name": null} used to reach the DB (NOT NULL) and end in a 500."""
+    item = user_client.post("/api/items", json={"name": "Teapot", "description": "x"}).json()
+    r = user_client.patch(f"/api/items/{item['id']}", json={"name": None})
+    assert r.status_code == 422
+    assert r.json()["detail"][0]["loc"] == ["body", "name"]
+
+    # Still allowed: leaving name out, and clearing the description explicitly.
+    r = user_client.patch(f"/api/items/{item['id']}", json={"description": None})
+    assert r.status_code == 200
+    assert r.json() == {**item, "description": None}
